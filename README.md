@@ -1,73 +1,82 @@
-# File Transfer Webpage
+# Next.js File Transfer Webpage Using Aliyun OSS
 
-A simple webpage for transferring text and files over a local network. Built with Node.js, Express, and vanilla JavaScript.
+A high-performance file management and transfer platform built with **Next.js 14+**. This project has evolved from a local-storage Express app into a cloud-native solution utilizing **Aliyun OSS**, featuring real-time streaming compression and automated lifecycle management.
 
-## Features
+## Core Features
 
-- Send plain text messages to the server (logged to `text.log`)
-- Upload single or multiple files (saved to `files/` directory with automatic naming conflicts resolution)
-- HTTPS/HTTP support (HTTPS is currently commented out in favor of HTTP)
-- Desktop notifications for received files (Windows)
-- Cross-origin resource sharing (CORS) enabled
-- Security headers implemented with Helmet.js
+* **Cloud-Native Storage**: Seamlessly integrated with Aliyun OSS, eliminating local server disk constraints.
+* **STS Secure Authentication**: Implements Security Token Service (STS) for temporary credentials, ensuring secure client-side uploads without exposing master AccessKeys.
+* **Optimized Download Experience**:
+* **Live Streaming Compression**: Powered by `archiver`, the server zips files on-the-fly and streams data directly to the user—zero temporary files, zero server disk usage.
+* **Browser-Managed Downloads**: Optimized `Content-Disposition` and `Accept-Ranges` headers ensure stable, large-file downloads handled directly by the browser's download manager.
 
-## Setup
+## Tech Stack
 
-1. Clone the repository
-2. Install dependencies: `npm install express helmet node-notifier`
-3. Configure your preferred protocol:
+* **Framework**: [Next.js 14 (App Router)](https://nextjs.org/)
+* **Storage**: [Aliyun OSS](https://www.aliyun.com/product/oss)
+* **Compression**: [Archiver.js](https://www.archiverjs.com/)
+* **Deployment**: [Vercel](https://vercel.com) / [CentOS + PM2 + Nginx]
+* **Icons**: Custom-designed SVG vector graphics
 
-### Option A: Run with HTTP (Current Default)
-The server is currently configured to use HTTP by default. Simply run:
+## Quick Start
+
+### 1. Clone and Install
+
 ```bash
-node server.js
+git clone -b vercel https://github.com/Jacky2080/filetransfer.git
+cd filetransfer
+npm install
 ```
 
-### Option B: Run with HTTPS
-1. Generate SSL certificates or place your own in the project directory (key.pem and cert.pem)
-2. Uncomment the HTTPS line and comment the HTTP line in `server.js`:
-```javascript
-const server = https.createServer(sslOptions, app);
-// const server = http.createServer(app);
-```
-3. Update the file paths in `server.js` to match your certificate locations
-4. Run the server: `node server.js`
+### 2. Environment Setup
 
-4. Access the application:
-   - HTTP: `http://your-server-ip:3000/filetransfer`
-   - HTTPS: `https://your-server-ip:3000/filetransfer`
+Create a `.env` file in the root directory:
 
-## Important Security Note
-
-- When using HTTP (current default), all data is transmitted in plain text
-- For secure transmission over networks, please use HTTPS option and provide your own SSL certificates
-- The HTTPS configuration includes secure TLS 1.2+ settings with strong cipher suites
-
-## File Structure
-
-```
-/filetransfer
-  ├── index.html      # Main webpage
-  ├── styles.css      # Styling
-  ├── scripts.js      # Client-side functionality
-  ├── server.js       # Express server
-  ├── text.log        # Created automatically for text messages
-  └── files/          # Created automatically for uploaded files
+```env
+OSS_ACCESS_KEY_ID=your_access_key
+OSS_ACCESS_KEY_SECRET=your_access_secret
+OSS_ROLE_ARN=your_sts_role_arn
+OSS_BUCKET=files-for-transfer
+OSS_REGION=oss-cn-shanghai
 ```
 
-## Usage
+### 3. Run Development Server
 
-- Enter text in the textarea and click "Send" to submit text messages
-- Select one or multiple files using the file input and click "Send" to upload
-- Received files are automatically saved with unique names to prevent overwriting
-- Text messages are appended to text.log with timestamps
+```bash
+npm run dev
 
-## Browser Support
+```
 
-Works in modern browsers that support:
-- Fetch API
-- FileReader API
-- ES6+ JavaScript features
+## Deployment
+
+### Option A: Vercel Platform (Recommended)
+
+1. Push your code to GitHub.
+2. Import the project into Vercel.
+3. Add all variables from `.env.local` to `Settings > Environment Variables`.
+4. **Note**: Vercel Free tier has a 10s API timeout. For very large zipping tasks, consider Option B.
+
+### Option B: Self-Hosted
+
+1. Build the project: `npm run build`.
+2. Use PM2 to manage the process:
+
+```bash
+pm2 start npm --name "next-oss" -- start
+```
+
+3. Configure Nginx as a reverse proxy and increase `proxy_read_timeout` to support long-duration stream zipping.
+
+## Maintenance & Operations
+
+### Automatic File Purge
+
+This project utilizes **OSS Lifecycle Rules** rather than manual cron jobs for maximum reliability:
+
+* **Scope**: Entire Bucket (or specific prefix).
+* **Action**: Expiration-based deletion.
+* **Period**: 7 Days.
+* **Execution**: Managed by Aliyun back-end at 06:00 CST daily.
 
 ## License
 

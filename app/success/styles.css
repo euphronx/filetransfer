@@ -77,11 +77,12 @@ label {
 }
 
 #file {
-  margin: 5px;
+  /* margin: 5px;
   width: 200px;
   padding: 5px 8px;
   border: 1px solid #aaa;
-  border-radius: 5px;
+  border-radius: 5px; */
+  display: none;
 }
 
 #textBtn {
@@ -91,6 +92,7 @@ label {
 
 button {
   padding: 3px 8px;
+  margin-left: 5px;
   background: none;
   color: #d48d21;
   border: 1px solid #d48d21;
