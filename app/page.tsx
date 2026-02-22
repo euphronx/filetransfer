@@ -13,7 +13,10 @@ export default function Home() {
     const pwdBuffer = Buffer.from(envPwd, "utf8");
     const inputBuffer = Buffer.from(inputPwd, "utf8");
 
-    if (pwdBuffer.length !== inputBuffer.length || !timingSafeEqual(pwdBuffer, inputBuffer)) {
+    const pwdView = new Uint8Array(pwdBuffer);
+    const inputView = new Uint8Array(inputBuffer);
+
+    if (pwdBuffer.length !== inputBuffer.length || !timingSafeEqual(pwdView, inputView)) {
       console.warn(`[AUTH FAILED] Time: ${new Date().toISOString()}`);
       redirect("/fail");
     }
