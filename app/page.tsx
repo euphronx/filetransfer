@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "crypto";
-import { SignJWT } from "jose";
+import { SignJWT, importPKCS8 } from "jose";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import styles from "./page.module.css";
@@ -18,28 +18,31 @@ export default function Home() {
 
     if (pwdBuffer.length !== inputBuffer.length || !timingSafeEqual(pwdView, inputView)) {
       console.warn(`[AUTH FAILED] Time: ${new Date().toISOString()}`);
-      redirect("/fail");
+      return redirect("/fail");
     }
 
-    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+    const privateKey = await importPKCS8(
+      Buffer.from(process.env.PRIVATE_KEY!, "base64").toString("utf8"),
+      "RS256"
+    );
     const token = await new SignJWT({ user: "authenticated" })
-      .setProtectedHeader({ alg: "HS256" })
+      .setProtectedHeader({ alg: "RS256", kid: "transfer-key-v1" })
       .setIssuedAt()
       .setExpirationTime("3d")
-      .sign(secret);
+      .sign(privateKey);
 
     const cookieStore = await cookies();
     cookieStore.set("token", token, {
       path: "/",
       httpOnly: true,
       secure: true,
-      sameSite: "strict",
+      sameSite: "none",
       maxAge: 3 * 24 * 60 * 60,
     });
 
     console.log(`[AUTH SUCCESS] Time: ${new Date().toISOString()}`);
 
-    redirect("/success");
+    return redirect("/success");
   }
   return (
     <form className={styles.form} action={test}>

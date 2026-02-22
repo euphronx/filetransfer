@@ -22,11 +22,11 @@ body {
 a {
   color: #e48d21;
   text-decoration: none;
-  font-size: 15px;
-  border: 2px solid #d48d21;
-  font-weight: 750;
+  font-size: 15px !important;
+  border: 2px solid #d48d21 !important;
+  font-weight: 750 !important;
   border-radius: 15px;
-  padding: 3px 8px;
+  padding: 3px 8px !important;
   height: 20px;
   align-self: flex-end;
 }

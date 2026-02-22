@@ -21,10 +21,13 @@ async function getFileList(date: string, client: OSS) {
   const fileList = (await client.list({
     prefix: prefix,
   })) as { objects: FileObj[] };
-  return fileList.objects.slice(1).map((f) => ({ name: f.name.replace(prefix, ""), url: f.url }));
+
+  return fileList.objects
+    .filter((f) => f.name !== prefix)
+    .map((f) => ({ name: f.name.replace(prefix, ""), url: f.url }));
 }
 
-function DropArea({ onUploadSuccess, client }: { onUploadSuccess: () => void; client: OSS }) {
+function DropArea({ onUploadFinished, client }: { onUploadFinished: () => void; client: OSS }) {
   const [highlight, setHighlight] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [statusText, setStatusText] = useState("Drag & Drop files here");
@@ -37,20 +40,10 @@ function DropArea({ onUploadSuccess, client }: { onUploadSuccess: () => void; cl
     setIsUploading(true);
     setStatusText(`Uploading ${files.length} file${files.length > 1 ? "(s)" : ""}...`);
 
-    async function isFileExists(name: string) {
-      name = `${getToday()}/${name}`;
-      try {
-        await client.head(name);
-        return true;
-      } catch (e: any) {
-        if (e.code === "NoSuchKey") {
-          return false;
-        }
-        throw `Error when getting unique file name: ${e}`;
-      }
-    }
-
     async function getUniqueFileName(fileName: string) {
+      const fileList = await getFileList(getToday(), client);
+      const isFileExists = async (name: string) => fileList.some((f) => f.name === name);
+
       // Get extension name
       let extName = "";
       const parts = fileName.split(".");
@@ -68,13 +61,6 @@ function DropArea({ onUploadSuccess, client }: { onUploadSuccess: () => void; cl
     }
 
     try {
-      // for (const file of files) {
-      //   console.log(file);
-      //   const cleanName = file.name.replace(/[/\\?%*:|"<>]/g, "_").replace(/\.\./g, "");
-      //   const finalName = await getUniqueFileName(cleanName);
-      //   await client.put(`${getToday()}/${finalName}`, file);
-      // }
-
       await Promise.all(
         files.map(async (file) => {
           const cleanName = file.name.replace(/[/\\?%*:|"<>]/g, "_").replace(/\.\./g, "");
@@ -88,13 +74,13 @@ function DropArea({ onUploadSuccess, client }: { onUploadSuccess: () => void; cl
       );
 
       setStatusText("All files uploaded.");
-      onUploadSuccess();
     } catch (err) {
       console.error(err);
       setStatusText("Failed to upload");
     } finally {
       setIsUploading(false);
       setTimeout(() => setStatusText("Drag & Drop files here"), 1500);
+      onUploadFinished();
     }
   }
 
@@ -150,17 +136,18 @@ function Form() {
   const [selectedNames, setSelectedNames] = useState<string[]>([]);
   const [OSSClient, setOSSCLIent] = useState<any>(null);
   const [downloading, setDownloading] = useState(false);
+  const [jwtToken, setJwtToken] = useState<any>(null);
 
   // Get OSS Client
   useEffect(() => {
     const getClient = async () => {
-      const response = await fetch("/api/sts");
+      const response = await fetch("/api/auth");
       if (response.status === 500 || !response.ok) {
         console.error("Error getting sts token");
         return;
       }
       const tokens = await response.json();
-      const { accessKeyId, accessKeySecret, stsToken, bucket } = tokens;
+      const { accessKeyId, accessKeySecret, stsToken, bucket, jwtToken } = tokens;
       const OSS = (await import("ali-oss")).default;
       const client = new OSS({
         region: "oss-cn-shanghai",
@@ -172,6 +159,7 @@ function Form() {
         secure: true,
       });
       setOSSCLIent(client);
+      setJwtToken(jwtToken);
     };
     getClient();
   }, []);
@@ -196,9 +184,12 @@ function Form() {
     );
   };
 
-  const handleSelectAll = () => setSelectedNames(fileList.map((f) => f.url));
+  const handleSelectAll = () =>
+    fileList.length === selectedNames.length
+      ? setSelectedNames([])
+      : setSelectedNames(fileList.map((f) => f.name));
 
-  const onUploadSuccess = async () => {
+  const onUploadFinished = async () => {
     if (date === getToday()) {
       const newFileList = await getFileList(date, OSSClient);
       setFileList(newFileList);
@@ -220,17 +211,31 @@ function Form() {
         link.download = selectedNames[0];
         link.click();
       } else {
-        const params = new URLSearchParams();
-        params.append("date", date);
-        params.append("files", selectedNames.join(","));
+        const body = {
+          date: date,
+          files: selectedNames,
+        };
+        const response = await fetch(
+          "https://oss-zipper-xvgsgppblx.cn-shanghai.fcapp.run/download",
+          {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${jwtToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(body),
+          }
+        );
+
+        if (!response.ok) throw "encounter an error when fetching file link";
+        const { name } = await response.json();
 
         const a = document.createElement("a");
-        a.href = `/api/download?${params.toString()}`;
-        console.log(a.href);
-        a.target = "_blank";
-        a.download = `files_${date}.zip`;
+        a.href = OSSClient.signatureUrl(name, {
+          "content-disposition": `attachment; filename=${name}`,
+        });
+        a.download = name;
         a.click();
-        console.log("clicked");
       }
     } catch (e) {
       alert(`Error when downloading: ${e}`);
@@ -241,12 +246,12 @@ function Form() {
 
   return (
     <form>
-      <DropArea onUploadSuccess={onUploadSuccess} client={OSSClient} />
+      <DropArea onUploadFinished={onUploadFinished} client={OSSClient} />
       <div>
         <h3>Fetch File</h3>
         <input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         <button type="button" id="select-all-btn" onClick={handleSelectAll}>
-          Select All
+          {fileList.length === selectedNames.length ? "Deselect" : "Select All"}
         </button>
         <div id="files">
           {fileList.map((f) => (
@@ -280,7 +285,7 @@ export default function Success() {
         <Link href={"/deepseek"}>DeepSeek</Link>
       </div>
       <Form />
-      <footer>&copy; 2025 Jacky</footer>
+      <footer>&copy; 2026 Jacky</footer>
     </>
   );
 }

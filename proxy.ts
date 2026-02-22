@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { jwtVerify } from "jose";
-
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
+import { jwtVerify, importSPKI } from "jose";
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -11,8 +9,13 @@ export async function proxy(req: NextRequest) {
   const isValidToken = async () => {
     if (!token) return false;
     try {
-      await jwtVerify(token, JWT_SECRET);
-      return true;
+      const publicKey = await importSPKI(
+        Buffer.from(process.env.PUBLIC_KEY!, "base64").toString("utf8"),
+        "RS256"
+      );
+      const { protectedHeader } = await jwtVerify(token, publicKey, { algorithms: ["RS256"] });
+      if (protectedHeader.kid !== "transfer-key-v1") return false;
+      else return true;
     } catch {
       return false;
     }
