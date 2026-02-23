@@ -38,6 +38,7 @@ export async function proxy(req: NextRequest) {
 
 export const config = {
   matcher: [
+    "/((?!.*\\.ico$|.*\\.png$|.*\\.jpg$).*)",
     "/",
     "/index.html",
     "/success/:path*",

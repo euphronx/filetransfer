@@ -137,7 +137,8 @@ function Form() {
   const [OSSClient, setOSSCLIent] = useState<any>(null);
   const [downloading, setDownloading] = useState(false);
   const [jwtToken, setJwtToken] = useState<any>(null);
-
+  const [downloadUrl, setDownloadUrl] = useState("");
+  let expireTimeout: NodeJS.Timeout | null = null;
   // Get OSS Client
   useEffect(() => {
     const getClient = async () => {
@@ -164,7 +165,7 @@ function Form() {
     getClient();
   }, []);
 
-  // Update file list when changing selected
+  // Update file list when changing selected date
   useEffect(() => {
     const updateDate = async () => {
       if (!OSSClient) return;
@@ -198,18 +199,24 @@ function Form() {
 
   async function downloadFiles() {
     if (selectedNames.length === 0) return;
+    setDownloadUrl("");
     setDownloading(true);
     setSelectedNames([]);
+    if (expireTimeout) clearTimeout(expireTimeout);
     try {
       if (selectedNames.length === 1) {
         const link = document.createElement("a");
         console.log(`downloading file ${selectedNames[0]}`);
         const fileName = `${date}/${selectedNames[0]}`;
-        link.href = OSSClient.signatureUrl(fileName, {
+        const url = OSSClient.signatureUrl(fileName, {
           "content-disposition": `attachment; filename=${selectedNames[0]}`,
+          "expires": 300,
         });
+        link.href = url;
         link.download = selectedNames[0];
         link.click();
+        setDownloadUrl(url);
+        expireTimeout = setTimeout(() => setDownloadUrl(""), 300000);
       } else {
         const body = {
           date: date,
@@ -231,11 +238,15 @@ function Form() {
         const { name } = await response.json();
 
         const a = document.createElement("a");
-        a.href = OSSClient.signatureUrl(name, {
+        const url = OSSClient.signatureUrl(name, {
           "content-disposition": `attachment; filename=${name}`,
+          "expires": 300,
         });
+        a.href = url;
         a.download = name;
         a.click();
+        setDownloadUrl(url);
+        expireTimeout = setTimeout(() => setDownloadUrl(""), 300000);
       }
     } catch (e) {
       alert(`Error when downloading: ${e}`);
@@ -272,6 +283,11 @@ function Form() {
         <button type="button" id="fetchBtn" onClick={downloadFiles}>
           {downloading ? "Downloading" : "Fetch"}
         </button>
+        <p className="url" style={downloadUrl ? { display: "block" } : { display: "none" }}>
+          Download should have begun, or click <a href={downloadUrl}>here</a> to download.
+          <br />
+          Notice: The URL will expire in 5 minutes.
+        </p>
       </div>
     </form>
   );

@@ -7,12 +7,6 @@ declare module "ali-oss" {
     bucket: string;
     authorizationV4: boolean;
     secure: boolean;
-
-    refreshSTSToken?: () => Promise<{
-      accessKeyId: string;
-      accessKeySecret: string;
-      stsToken: string;
-    }>;
   }
 
   interface PutResult {
@@ -23,11 +17,11 @@ declare module "ali-oss" {
 
   export default class OSS {
     constructor(options: Options);
-    put(name: string, file: any, options?: any): Promise<PutResult>;
+    put(fileName: string, file: any, options?: any): Promise<PutResult>;
     list(options: object);
     signatureUrl(fileName: string, options: object);
     head(fileName: string, options?: object);
-    getStream(name: string, options?: OSS.GetStreamOptions | undefined);
+    delete(fileName: string, options?: object);
   }
 
   export class STS {

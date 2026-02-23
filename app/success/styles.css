@@ -19,14 +19,14 @@ body {
   display: block;
 }
 
-a {
+.title + a {
   color: #e48d21;
   text-decoration: none;
-  font-size: 15px !important;
-  border: 2px solid #d48d21 !important;
-  font-weight: 750 !important;
+  font-size: 15px;
+  border: 2px solid #d48d21;
+  font-weight: 750;
   border-radius: 15px;
-  padding: 3px 8px !important;
+  padding: 3px 8px;
   height: 20px;
   align-self: flex-end;
 }
@@ -112,7 +112,7 @@ h3 {
 }
 
 #date + button {
-  margin-left: 3px;
+  margin-left: 8px;
 }
 
 #files {
@@ -156,9 +156,33 @@ footer {
   margin-top: 30px;
 }
 
+.url {
+  margin: 10px 20px 0;
+}
+
+.url a:link {
+  color: #0000ff;
+  text-decoration: underline;
+  cursor: pointer;
+  border: none;
+}
+
+.url a:visited {
+  color: #551a8b;
+  text-decoration: underline;
+}
+
+.url a:active {
+  color: #ff0000;
+}
+
 @media (max-width: 620px) {
   #files {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .header {
+    width: 450px;
   }
 
   form {
@@ -176,8 +200,20 @@ footer {
 }
 
 @media (max-width: 460px) {
+  .header {
+    width: 350px;
+  }
+
   form {
-    width: 300px;
+    width: 350px;
+  }
+
+  #date + button {
+    margin-left: 5px;
+  }
+
+  #files {
+    margin: 0 10px 10px;
   }
 
   #drop-area {
@@ -188,6 +224,6 @@ footer {
   }
 
   .checkbox-label {
-    max-width: calc(255px / 2 - 25px);
+    max-width: calc(327px / 2 - 26px);
   }
 }
