@@ -8,8 +8,20 @@ export default function Interface() {
   const [stream, setStream] = useState("");
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [jwtToken, setJwtToken] = useState("");
   const textareaRef = useRef(null);
   const messagesRef = useRef(messages);
+
+  // Get jwt token
+  useEffect(() => {
+    const getClient = async () => {
+      const response = await fetch("/auth");
+      if (response.status === 500 || !response.ok) throw new Error("Failed to get JWT");
+      const { jwtToken } = await response.json();
+      setJwtToken(jwtToken);
+    };
+    getClient();
+  }, []);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -25,13 +37,13 @@ export default function Interface() {
 
   useEffect(() => {
     switch (messages.length) {
-      case 20:
-        alert("Notice: This chatbot needs the developer paying. Please limit your use.");
+      case 15:
+        alert("Notice: This chatbot requires the developer to pay. Please limit your use.");
+        break;
+      case 25:
+        alert("Please limit your use! The page will reload after another 5 messages.");
         break;
       case 30:
-        alert("Please limit your use! The page will reload after 20 messages.");
-        break;
-      case 40:
         window.alert("The page will reload in 10 seconds.");
         setTimeout(() => window.location.reload(), 10000);
         break;
@@ -49,9 +61,12 @@ export default function Interface() {
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/message", {
+      const response = await fetch("https://oss-zipper-xvgsgppblx.cn-shanghai.fcapp.run/message", {
         method: "POST",
-        headers: { "Content-Type": "application/json; charset=utf-8" },
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          "Authorization": `Bearer ${jwtToken}`,
+        },
         body: JSON.stringify({ messages: newMessages }),
       });
 

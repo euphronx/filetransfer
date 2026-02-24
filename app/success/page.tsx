@@ -139,30 +139,39 @@ function Form() {
   const [jwtToken, setJwtToken] = useState<any>(null);
   const [downloadUrl, setDownloadUrl] = useState("");
   let expireTimeout: NodeJS.Timeout | null = null;
-  // Get OSS Client
+
+  // Get jwt token and client
   useEffect(() => {
-    const getClient = async () => {
-      const response = await fetch("/api/auth");
-      if (response.status === 500 || !response.ok) {
-        console.error("Error getting sts token");
-        return;
+    const getAuth = async () => {
+      const jwtRes = await fetch("/auth");
+      if (jwtRes.status === 500 || !jwtRes.ok) throw new Error("Failed to get JWT");
+      const { jwtToken } = await jwtRes.json();
+      setJwtToken(jwtToken);
+
+      const stsRes = await fetch("https://oss-zipper-xvgsgppblx.cn-shanghai.fcapp.run/auth", {
+        headers: {
+          "Authorization": `Bearer ${jwtToken}`,
+          "Content-Type": "application/json",
+        },
+      });
+      if (stsRes.status === 500 || !stsRes.ok) {
+        console.error(await stsRes.json());
+        throw new Error("Failed to get STS");
       }
-      const tokens = await response.json();
-      const { accessKeyId, accessKeySecret, stsToken, bucket, jwtToken } = tokens;
+      const { accessKeyId, accessKeySecret, stsToken, bucket } = await stsRes.json();
       const OSS = (await import("ali-oss")).default;
       const client = new OSS({
         region: "oss-cn-shanghai",
         authorizationV4: true,
-        accessKeyId: accessKeyId,
-        accessKeySecret: accessKeySecret,
-        stsToken: stsToken,
-        bucket: bucket,
+        accessKeyId,
+        accessKeySecret,
+        stsToken,
+        bucket,
         secure: true,
       });
       setOSSCLIent(client);
-      setJwtToken(jwtToken);
     };
-    getClient();
+    getAuth();
   }, []);
 
   // Update file list when changing selected date

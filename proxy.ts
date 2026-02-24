@@ -39,7 +39,7 @@ export async function proxy(req: NextRequest) {
       return NextResponse.redirect(new URL("/", req.url));
     }
 
-    if (pathname.startsWith("/api")) {
+    if (pathname.startsWith("/auth")) {
       return new NextResponse(JSON.stringify({ error: "unauthorized" }), {
         status: 401,
         headers: { "content-type": "application/json" },
@@ -51,13 +51,5 @@ export async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    "/((?!.*\\.ico$|.*\\.png$|.*\\.jpg$).*)",
-    "/",
-    "/index.html",
-    "/success/:path*",
-    "/fail/:path*",
-    "/deepseek/:path*",
-    "/api/:path*",
-  ],
+  matcher: ["/", "/success/:path*", "/fail/:path*", "/deepseek/:path*", "/auth/:path*"],
 };
