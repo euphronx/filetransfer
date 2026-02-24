@@ -4,6 +4,10 @@ import { jwtVerify, importSPKI } from "jose";
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  const ip =
+    req.headers.get("x-nf-client-connection-ip") ||
+    req.headers.get("x-forwarded-for")?.split(",")[0] ||
+    "unknown";
   const token = req.cookies.get("token")?.value;
 
   const isValidToken = async () => {
@@ -23,13 +27,23 @@ export async function proxy(req: NextRequest) {
 
   if (pathname === "/") {
     if (await isValidToken()) {
+      console.log(`Valid token from IP ${ip} to /, redirect to success`);
       return NextResponse.redirect(new URL("/success", req.url));
     }
   }
 
-  if (pathname.startsWith("/success") || pathname.startsWith("/deepseek")) {
-    if (!(await isValidToken())) {
+  if (!(await isValidToken())) {
+    console.log(`[warn]Invalid visit to ${pathname} from IP ${ip}`);
+    if (pathname.startsWith("/success") || pathname.startsWith("/deepseek")) {
+      console.log(`Invalid visit to ${pathname}, redirect to /`);
       return NextResponse.redirect(new URL("/", req.url));
+    }
+
+    if (pathname.startsWith("/api")) {
+      return new NextResponse(JSON.stringify({ error: "unauthorized" }), {
+        status: 401,
+        headers: { "content-type": "application/json" },
+      });
     }
   }
 
