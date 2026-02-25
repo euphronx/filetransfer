@@ -1,12 +1,17 @@
 declare module "ali-oss" {
-  interface Options {
-    region: string;
+  interface Credentials {
     accessKeyId: string;
     accessKeySecret: string;
     stsToken: string;
+  }
+
+  interface Options extends Partial<Credentials> {
+    region: string;
     bucket: string;
     authorizationV4: boolean;
     secure: boolean;
+    refreshSTSToken?: () => Promise<Credentials>;
+    refreshSTSTokenInterval?: number;
   }
 
   interface PutResult {
@@ -22,6 +27,7 @@ declare module "ali-oss" {
     signatureUrl(fileName: string, options: object);
     head(fileName: string, options?: object);
     delete(fileName: string, options?: object);
+    deleteMulti(files: string[], options?: object);
   }
 
   export class STS {

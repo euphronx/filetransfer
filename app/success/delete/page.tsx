@@ -30,13 +30,13 @@ export default function Delete() {
   const [date, setDate] = useState(getToday());
   const [fileList, setFileList] = useState<{ name: string; url: string }[]>([]);
   const [selectedNames, setSelectedNames] = useState<string[]>([]);
-  const [OSSClient, setOSSCLIent] = useState<any>(null);
+  const [OSSClient, setOSSCLIent] = useState<OSS | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   // Get OSS Client
   useEffect(() => {
     const getClient = async () => {
-      const response = await fetch("/api/auth");
+      const response = await fetch("/auth");
       if (response.status === 500 || !response.ok) {
         console.error("Error getting sts token");
         return;
@@ -47,11 +47,21 @@ export default function Delete() {
       const client = new OSS({
         region: "oss-cn-shanghai",
         authorizationV4: true,
-        accessKeyId: accessKeyId,
-        accessKeySecret: accessKeySecret,
-        stsToken: stsToken,
-        bucket: bucket,
         secure: true,
+        bucket: bucket,
+        accessKeyId,
+        accessKeySecret,
+        stsToken,
+        refreshSTSToken: async () => {
+          try {
+            const response = await fetch("/auth");
+            const { accessKeyId, accessKeySecret, stsToken } = await response.json();
+            return { accessKeyId, accessKeySecret, stsToken };
+          } catch {
+            throw new Error("Failed to get STS");
+          }
+        },
+        refreshSTSTokenInterval: 3600000,
       });
       setOSSCLIent(client);
     };
@@ -83,22 +93,18 @@ export default function Delete() {
       ? setSelectedNames([])
       : setSelectedNames(fileList.map((f) => f.name));
 
+  // Delete multiple files
   async function deleteFiles() {
     setDeleting(true);
     setSelectedNames([]);
-    console.log("started deleting");
     try {
-      await Promise.all(
-        selectedNames.map((f) => {
-          const fileName = `${date}/${f}`;
-          OSSClient.delete(fileName);
-        })
-      );
+      const files = selectedNames.map((f) => `${date}/${f}`);
+      await OSSClient!.deleteMulti(files);
     } catch (e) {
       alert(`Failed to delete: ${e}`);
     } finally {
       setDeleting(false);
-      const newFileList = await getFileList(date, OSSClient);
+      const newFileList = await getFileList(date, OSSClient!);
       setFileList(newFileList);
     }
   }

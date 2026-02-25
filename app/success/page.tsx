@@ -145,29 +145,27 @@ function Form() {
     const getAuth = async () => {
       const jwtRes = await fetch("/auth");
       if (jwtRes.status === 500 || !jwtRes.ok) throw new Error("Failed to get JWT");
-      const { jwtToken } = await jwtRes.json();
+      const { accessKeyId, accessKeySecret, stsToken, bucket, jwtToken } = await jwtRes.json();
       setJwtToken(jwtToken);
-
-      const stsRes = await fetch("https://oss-zipper-xvgsgppblx.cn-shanghai.fcapp.run/auth", {
-        headers: {
-          "Authorization": `Bearer ${jwtToken}`,
-          "Content-Type": "application/json",
-        },
-      });
-      if (stsRes.status === 500 || !stsRes.ok) {
-        console.error(await stsRes.json());
-        throw new Error("Failed to get STS");
-      }
-      const { accessKeyId, accessKeySecret, stsToken, bucket } = await stsRes.json();
       const OSS = (await import("ali-oss")).default;
       const client = new OSS({
         region: "oss-cn-shanghai",
         authorizationV4: true,
+        secure: true,
+        bucket: bucket,
         accessKeyId,
         accessKeySecret,
         stsToken,
-        bucket,
-        secure: true,
+        refreshSTSToken: async () => {
+          try {
+            const response = await fetch("/auth");
+            const { accessKeyId, accessKeySecret, stsToken } = await response.json();
+            return { accessKeyId, accessKeySecret, stsToken };
+          } catch {
+            throw new Error("Failed to get STS");
+          }
+        },
+        refreshSTSTokenInterval: 3600000,
       });
       setOSSCLIent(client);
     };
