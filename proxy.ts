@@ -27,17 +27,21 @@ export async function proxy(req: NextRequest) {
 
   if (pathname === "/") {
     if (await isValidToken()) {
-      console.log(`Valid token from IP ${ip} to /, redirect to success`);
+      console.log(`[info] Valid token from IP ${ip} to /, redirect to success`);
       return NextResponse.redirect(new URL("/success", req.url));
     }
   }
 
   if (!(await isValidToken())) {
-    console.log(`[warn]Invalid visit to ${pathname} from IP ${ip}`);
     if (pathname.startsWith("/success") || pathname.startsWith("/deepseek")) {
-      console.log(`Invalid visit to ${pathname}, redirect to /`);
+      console.log(
+        `[warn] Invalid visit to ${pathname} from IP ${ip}, request body: ${JSON.stringify(req.body)}`
+      );
       return NextResponse.redirect(new URL("/", req.url));
     }
+    console.log(
+      `[warn] Invalid visit to ${pathname} from IP ${ip}, request body: ${JSON.stringify(req.body)}`
+    );
 
     if (pathname.startsWith("/auth")) {
       return new NextResponse(JSON.stringify({ error: "unauthorized" }), {
