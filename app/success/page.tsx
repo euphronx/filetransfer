@@ -17,7 +17,7 @@ function getToday() {
 }
 
 async function getFileList(date: string, client: OSS) {
-  const prefix = `${date}/`;
+  const prefix = `files/${date}/`;
   const fileList = (await client.list({
     prefix: prefix,
   })) as { objects: FileObj[] };
@@ -67,7 +67,7 @@ function DropArea({ onUploadFinished, client }: { onUploadFinished: () => void; 
           const finalName = await getUniqueFileName(cleanName);
           console.log(`starting to put file ${finalName}`);
           console.time(finalName);
-          await client.put(`${getToday()}/${finalName}`, file);
+          await client.put(`files/${getToday()}/${finalName}`, file);
           console.log(`finished putting file ${finalName}`);
           console.timeEnd(finalName);
         })
@@ -147,6 +147,15 @@ function Form() {
       if (jwtRes.status === 500 || !jwtRes.ok) throw new Error("Failed to get JWT");
       const { accessKeyId, accessKeySecret, stsToken, bucket, jwtToken } = await jwtRes.json();
       setJwtToken(jwtToken);
+
+      // Wake up the FC server
+      fetch("https://oss-zipper-xvgsgppblx.cn-shanghai.fcapp.run/wakeup", {
+        headers: {
+          "Authorization": `Bearer ${jwtToken}`,
+          "Content-Type": "application/json",
+        },
+      });
+
       const OSS = (await import("ali-oss")).default;
       const client = new OSS({
         region: "oss-cn-shanghai",
@@ -202,28 +211,54 @@ function Form() {
       const newFileList = await getFileList(date, OSSClient);
       setFileList(newFileList);
     }
+
+    let ok = false;
+    let retries = 0;
+    while (!ok && retries < 5) {
+      console.log("fetch /zip");
+      const response = await fetch("https://oss-zipper-xvgsgppblx.cn-shanghai.fcapp.run/zip", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${jwtToken}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (response.status === 201) {
+        ok = true;
+        const result = await response.json();
+        console.log(result.name);
+      } else {
+        retries++;
+        if (retries < 5) {
+          await new Promise((resolve) => setTimeout(resolve, 1000 * retries));
+        }
+      }
+    }
   };
 
   async function downloadFiles() {
     if (selectedNames.length === 0) return;
     setDownloadUrl("");
     setDownloading(true);
-    setSelectedNames([]);
+    const link = document.createElement("a");
     if (expireTimeout) clearTimeout(expireTimeout);
     try {
       if (selectedNames.length === 1) {
-        const link = document.createElement("a");
         console.log(`downloading file ${selectedNames[0]}`);
-        const fileName = `${date}/${selectedNames[0]}`;
+        const fileName = `files/${date}/${selectedNames[0]}`;
         const url = OSSClient.signatureUrl(fileName, {
           "content-disposition": `attachment; filename=${selectedNames[0]}`,
           "expires": 300,
         });
         link.href = url;
         link.download = selectedNames[0];
-        link.click();
-        setDownloadUrl(url);
-        expireTimeout = setTimeout(() => setDownloadUrl(""), 300000);
+      } else if (selectedNames.length === fileList.length) {
+        const zipName = `zips/files_${date}.zip`;
+        link.href = OSSClient.signatureUrl(zipName, {
+          "content-disposition": `attachment; filename=${zipName}`,
+          "expires": 300,
+        });
       } else {
         const body = {
           date: date,
@@ -243,22 +278,23 @@ function Form() {
 
         if (!response.ok) throw "encounter an error when fetching file link";
         const { name } = await response.json();
+        const zipName = `zips/files_${date}.zip`;
 
-        const a = document.createElement("a");
-        const url = OSSClient.signatureUrl(name, {
-          "content-disposition": `attachment; filename=${name}`,
+        const url = OSSClient.signatureUrl(`zips/${name}`, {
+          "content-disposition": `attachment; filename=${encodeURIComponent(zipName)}`,
           "expires": 300,
         });
-        a.href = url;
-        a.download = name;
-        a.click();
-        setDownloadUrl(url);
-        expireTimeout = setTimeout(() => setDownloadUrl(""), 300000);
+        link.href = url;
+        link.download = zipName;
       }
     } catch (e) {
       alert(`Error when downloading: ${e}`);
     } finally {
+      setDownloadUrl(link.href);
+      link.click();
       setDownloading(false);
+      setSelectedNames([]);
+      expireTimeout = setTimeout(() => setDownloadUrl(""), 300000);
     }
   }
 

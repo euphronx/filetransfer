@@ -16,7 +16,7 @@ function getToday() {
 }
 
 async function getFileList(date: string, client: OSS) {
-  const prefix = `${date}/`;
+  const prefix = `files/${date}/`;
   const fileList = (await client.list({
     prefix: prefix,
   })) as { objects: FileObj[] };
@@ -98,7 +98,7 @@ export default function Delete() {
     setDeleting(true);
     setSelectedNames([]);
     try {
-      const files = selectedNames.map((f) => `${date}/${f}`);
+      const files = selectedNames.map((f) => `files/${date}/${f}`);
       await OSSClient!.deleteMulti(files);
     } catch (e) {
       alert(`Failed to delete: ${e}`);

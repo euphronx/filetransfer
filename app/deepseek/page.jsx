@@ -37,13 +37,13 @@ export default function Interface() {
 
   useEffect(() => {
     switch (messages.length) {
-      case 15:
+      case 20: // 10 chats
         alert("Notice: This chatbot requires the developer to pay. Please limit your use.");
         break;
-      case 25:
+      case 30: // 15 chats
         alert("Please limit your use! The page will reload after another 5 messages.");
         break;
-      case 30:
+      case 40: // 20chats
         window.alert("The page will reload in 10 seconds.");
         setTimeout(() => window.location.reload(), 10000);
         break;
