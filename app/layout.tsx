@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "File Transfer",
-  icons: "favicon.svg",
+  icons: "/favicon.svg",
   description: "A personal webpage for exchanging files",
 };
 
