@@ -1,8 +1,20 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  createContext,
+  useContext,
+  type Dispatch,
+  SetStateAction,
+} from "react";
 import Link from "next/link";
 import "./styles.css";
 import OSS from "ali-oss";
+
+const authContext = createContext<Dispatch<
+  SetStateAction<{ state: number; message: string }>
+> | null>(null);
 
 interface FileObj {
   name: string;
@@ -138,15 +150,27 @@ function Form() {
   const [downloading, setDownloading] = useState(false);
   const [jwtToken, setJwtToken] = useState<any>(null);
   const [downloadUrl, setDownloadUrl] = useState("");
+  const setAuthState = useContext(authContext)!;
   let expireTimeout: NodeJS.Timeout | null = null;
 
   // Get jwt token and client
   useEffect(() => {
     const getAuth = async () => {
       const jwtRes = await fetch("/auth");
-      if (jwtRes.status === 500 || !jwtRes.ok) throw new Error("Failed to get JWT");
+      if (jwtRes.status === 500 || !jwtRes.ok) {
+        setAuthState({
+          state: 2,
+          message: "Failed to authenticate",
+        });
+        throw new Error("Failed to get JWT");
+      }
       const { accessKeyId, accessKeySecret, stsToken, bucket, jwtToken } = await jwtRes.json();
       setJwtToken(jwtToken);
+      setAuthState({
+        state: 1,
+        message: "Successfully authenticated",
+      });
+      setTimeout(setAuthState, 3000, "");
 
       // Wake up the FC server
       fetch("https://oss-zipper-xvgsgppblx.cn-shanghai.fcapp.run/wakeup", {
@@ -179,6 +203,7 @@ function Form() {
       setOSSCLIent(client);
     };
     getAuth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Update file list when changing selected date
@@ -337,13 +362,26 @@ function Form() {
 }
 
 export default function Success() {
+  const [authState, setAuthState] = useState({ state: 0, message: "Authenticating..." });
   return (
     <>
+      {authState.message && (
+        <div
+          className={
+            "floating" + (authState.state === 0 ? "" : authState.state === 1 ? " success" : " fail")
+          }
+        >
+          {authState.message}
+        </div>
+      )}
       <div className="header">
         <div className="title">File Transfer</div>
         <Link href={"/deepseek"}>DeepSeek</Link>
       </div>
-      <Form />
+      <authContext.Provider value={setAuthState}>
+        <Form />
+      </authContext.Provider>
+
       <footer>&copy; 2026 Jacky</footer>
     </>
   );

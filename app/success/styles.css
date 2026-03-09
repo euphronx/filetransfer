@@ -227,3 +227,20 @@ footer {
     max-width: calc(327px / 2 - 26px);
   }
 }
+
+.floating {
+  position: absolute;
+  top: 30px;
+  right: 25px;
+  background-color: lightgray;
+  border-radius: 15px;
+  padding: 8px 13px;
+}
+
+.floating.success {
+  background-color: lightgreen;
+}
+
+.floating.fail {
+  background-color: lightcoral;
+}
