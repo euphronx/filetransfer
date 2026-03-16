@@ -5,6 +5,7 @@ import {
   useRef,
   createContext,
   useContext,
+  useMemo,
   type Dispatch,
   SetStateAction,
 } from "react";
@@ -28,8 +29,8 @@ function getToday() {
   return today;
 }
 
-async function getFileList(date: string, client: OSS) {
-  const prefix = `files/${date}/`;
+async function getFileList(date: string | null, client: OSS) {
+  const prefix = date ? `files/${date}/` : "files/";
   const fileList = (await client.list({
     prefix: prefix,
   })) as { objects: FileObj[] };
@@ -142,6 +143,102 @@ function DropArea({ onUploadFinished, client }: { onUploadFinished: () => void; 
   );
 }
 
+function Search({
+  fileList,
+  setDate,
+}: {
+  fileList: { name: string }[];
+  setDate: Dispatch<SetStateAction<string>>;
+}) {
+  const [searchText, setSearchText] = useState("");
+  const [reg, setReg] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const files = useMemo(() => {
+    return fileList.map((f) => {
+      const parts = f.name.split("/");
+      const date = parts.shift()!;
+      return { date, name: parts.join("/") };
+    });
+  }, [fileList]);
+
+  const list = useMemo(() => {
+    if (!searchText) return [];
+    try {
+      if (reg) {
+        const regText = new RegExp(searchText, "i");
+        return files.filter((f) => regText.test(f.name));
+      }
+      return files.filter((f) => f.name.toLowerCase().includes(searchText.toLowerCase()));
+    } catch {
+      return [];
+    }
+  }, [searchText, reg, files]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (list.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((prev) => (prev < list.length - 1 ? prev + 1 : 0));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((prev) => (prev > 0 ? prev - 1 : list.length - 1));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (activeIndex >= 0 && activeIndex < list.length) {
+        const selected = list[activeIndex];
+        setDate(selected.date);
+        setSearchText("");
+      }
+    }
+  };
+
+  return (
+    <div className="search-container">
+      <div className={`search-box ${list && list.length > 0 ? "search-content" : ""}`}>
+        <input
+          type="text"
+          className="search-input"
+          placeholder="Search files"
+          value={searchText}
+          onChange={(e) => {
+            setSearchText(e.target.value);
+            setActiveIndex(-1);
+          }}
+          onKeyDown={handleKeyDown}
+        ></input>
+        <button
+          title="Use Reg Expression"
+          className={`reg-btn ${reg ? "selected" : ""}`}
+          type="button"
+          onClick={() => {
+            setReg(!reg);
+          }}
+        >
+          .*
+        </button>
+      </div>
+      {searchText && list.length > 0 && (
+        <ul className="search-result">
+          {list.map((f, idx) => (
+            <li
+              key={`${f.date}/${f.name}`}
+              className={idx === activeIndex ? "active" : ""}
+              onClick={() => {
+                setDate(f.date!);
+                setSearchText("");
+              }}
+              onMouseEnter={() => setActiveIndex(idx)}
+            >
+              <span className="file-name">{f.name}</span>
+              <span className="date">{f.date}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function Form() {
   const [date, setDate] = useState(getToday());
   const [fileList, setFileList] = useState<{ name: string; url: string }[]>([]);
@@ -210,8 +307,10 @@ function Form() {
   useEffect(() => {
     const updateDate = async () => {
       if (!OSSClient) return;
+      setSelectedNames([]);
+      if (date !== getToday()) return;
       try {
-        const newFileList = await getFileList(date, OSSClient);
+        const newFileList = await getFileList(null, OSSClient);
         setFileList(newFileList);
       } catch {
         console.error(`Error when getting file list of date ${date}`);
@@ -227,13 +326,13 @@ function Form() {
   };
 
   const handleSelectAll = () =>
-    fileList.length === selectedNames.length
+    fileList.filter((f) => f.name.startsWith(`${date}/`)).length === selectedNames.length
       ? setSelectedNames([])
-      : setSelectedNames(fileList.map((f) => f.name));
+      : setSelectedNames(fileList.filter((f) => f.name.startsWith(`${date}/`)).map((f) => f.name));
 
   const onUploadFinished = async () => {
     if (date === getToday()) {
-      const newFileList = await getFileList(date, OSSClient);
+      const newFileList = await getFileList(null, OSSClient);
       setFileList(newFileList);
     }
 
@@ -271,14 +370,16 @@ function Form() {
     try {
       if (selectedNames.length === 1) {
         console.log(`downloading file ${selectedNames[0]}`);
-        const fileName = `files/${date}/${selectedNames[0]}`;
+        const fileName = `files/${selectedNames[0]}`;
         const url = OSSClient.signatureUrl(fileName, {
           "content-disposition": `attachment; filename=${selectedNames[0]}`,
           "expires": 300,
         });
         link.href = url;
         link.download = selectedNames[0];
-      } else if (selectedNames.length === fileList.length) {
+      } else if (
+        selectedNames.length === fileList.filter((f) => f.name.startsWith(`${date}/`)).length
+      ) {
         const zipName = `zips/files_${date}.zip`;
         link.href = OSSClient.signatureUrl(zipName, {
           "content-disposition": `attachment; filename=${zipName}`,
@@ -287,7 +388,7 @@ function Form() {
       } else {
         const body = {
           date: date,
-          files: selectedNames,
+          files: selectedNames.map((f) => f.replace(`${date}/`, "")),
         };
         const response = await fetch(
           "https://oss-zipper-xvgsgppblx.cn-shanghai.fcapp.run/download",
@@ -327,26 +428,33 @@ function Form() {
     <form>
       <DropArea onUploadFinished={onUploadFinished} client={OSSClient} />
       <div>
-        <h3>Fetch File</h3>
-        <input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        <button type="button" id="select-all-btn" onClick={handleSelectAll}>
-          {fileList.length === selectedNames.length ? "Deselect" : "Select All"}
-        </button>
+        <div className="fetch-header">
+          <h3>Fetch File</h3>
+          <input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <button type="button" id="select-all-btn" onClick={handleSelectAll}>
+            {fileList.filter((f) => f.name.startsWith(`${date}/`)).length === selectedNames.length
+              ? "Deselect"
+              : "Select All"}
+          </button>
+          <Search fileList={fileList} setDate={setDate} />
+        </div>
         <div id="files">
-          {fileList.map((f) => (
-            <div className="options" key={f.url}>
-              <input
-                type="checkbox"
-                id={f.url}
-                className="checkbox-input"
-                checked={selectedNames.includes(f.name)}
-                onChange={() => handleCheck(f.name)}
-              ></input>
-              <label htmlFor={f.url} className="checkbox-label">
-                {f.name}
-              </label>
-            </div>
-          ))}
+          {fileList
+            .filter((f) => f.name.startsWith(`${date}/`))
+            .map((f) => (
+              <div className="options" key={f.url}>
+                <input
+                  type="checkbox"
+                  id={f.url}
+                  className="checkbox-input"
+                  checked={selectedNames.includes(f.name)}
+                  onChange={() => handleCheck(f.name)}
+                ></input>
+                <label htmlFor={f.url} className="checkbox-label">
+                  {f.name.replace(`${date}/`, "")}
+                </label>
+              </div>
+            ))}
         </div>
         <button type="button" id="fetchBtn" onClick={downloadFiles}>
           {downloading ? "Downloading" : "Fetch"}
