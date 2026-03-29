@@ -9,13 +9,18 @@ body {
   display: flex;
   margin: 20px auto 15px;
   gap: 15px;
+  flex-flow: wrap;
 }
 
 .title {
   color: #e48d21;
   font-weight: bold;
-  font-size: 35px;
+  font-size: 30px;
   display: block;
+  overflow: hidden;
+  max-width: 100%;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .title ~ a {
