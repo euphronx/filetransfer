@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { jwtVerify, importSPKI } from "jose";
+import { setCookie, verifyCookie } from "./src/jwt";
 
 export async function middleware(req: NextRequest) {
+  if (req.nextUrl.searchParams.has("change")) return;
+
   const { pathname } = req.nextUrl;
   const ip =
     req.headers.get("x-nf-client-connection-ip") ||
@@ -10,50 +12,51 @@ export async function middleware(req: NextRequest) {
     "unknown";
   const token = req.cookies.get("token")?.value;
 
-  const isValidToken = async () => {
-    if (!token) return false;
-    try {
-      const publicKey = await importSPKI(
-        Buffer.from(process.env.PUBLIC_KEY!, "base64").toString("utf8"),
-        "RS256"
-      );
-      const { protectedHeader } = await jwtVerify(token, publicKey, { algorithms: ["RS256"] });
-      if (protectedHeader.kid !== "transfer-key-v1") return false;
-      else return true;
-    } catch {
-      return false;
-    }
-  };
+  if (pathname.startsWith("/fail")) return NextResponse.next();
 
-  if (pathname === "/") {
-    if (await isValidToken()) {
-      console.log(`[info] Valid token from IP ${ip} to /, redirect to success`);
-      return NextResponse.redirect(new URL("/success", req.url));
-    }
+  if (
+    !["/auth", "/deepseek", "/success", "/rooms"].some((r) => pathname.includes(r)) &&
+    pathname !== "/"
+  )
+    return NextResponse.redirect(new URL("/", req.url));
+
+  const payload = await verifyCookie(token);
+
+  const allowedIPs = JSON.parse(process.env.ALLOWED_IP!) as string[];
+  if (allowedIPs.includes(ip)) {
+    if (!payload) await setCookie({ room: "main" });
+    if (pathname === "/") return NextResponse.redirect(new URL("/success/", req.url));
+    return NextResponse.next();
   }
 
-  if (!(await isValidToken())) {
-    if (pathname.startsWith("/success") || pathname.startsWith("/deepseek")) {
-      console.log(
-        `[warn] Invalid visit to ${pathname} from IP ${ip}, request body: ${JSON.stringify(req.body)}`
-      );
-      return NextResponse.redirect(new URL("/", req.url));
+  if (payload) {
+    const room = payload.room;
+    if (pathname === "/") {
+      console.log(`[info] Valid token from IP ${ip} to /, redirect to room ${room}`);
+      if (room === "main") return NextResponse.redirect(new URL("/success/", req.url)); // Redirect to /success if room is main
+      return NextResponse.redirect(new URL(`/rooms/${room}/`, req.url)); // Redirect to the corresponding room
     }
+    if (room !== "main" && !pathname.startsWith(`/rooms/${room}/`) && !pathname.startsWith("/auth"))
+      // Go to where you should!
+      return NextResponse.redirect(new URL(`/rooms/${room}/`, req.url));
+
+    return NextResponse.next(); // Nothing happens
+  } else {
     console.log(
       `[warn] Invalid visit to ${pathname} from IP ${ip}, request body: ${JSON.stringify(req.body)}`
     );
 
-    if (pathname.startsWith("/auth")) {
+    if (pathname.startsWith("/auth"))
       return new NextResponse(JSON.stringify({ error: "unauthorized" }), {
         status: 401,
         headers: { "content-type": "application/json" },
       });
-    }
-  }
 
-  return NextResponse.next();
+    if (pathname === "/") return NextResponse.next();
+    else return NextResponse.redirect(new URL("/", req.url));
+  }
 }
 
 export const config = {
-  matcher: ["/", "/success/:path*", "/fail/:path*", "/deepseek/:path*", "/auth/:path*"],
+  matcher: ["/((?!_next/static|_next/image|.*\\.ico|.*\\.svg).*)"],
 };

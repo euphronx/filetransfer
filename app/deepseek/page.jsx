@@ -61,14 +61,17 @@ export default function Interface() {
     setIsLoading(true);
 
     try {
-      const response = await fetch("https://oss-zipper-xvgsgppblx.cn-shanghai.fcapp.run/message", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json; charset=utf-8",
-          "Authorization": `Bearer ${jwtToken}`,
-        },
-        body: JSON.stringify({ messages: newMessages }),
-      });
+      const response = await fetch(
+        "https://file-trnsfer-fc-hcuthkwduw.cn-shanghai.fcapp.run/message",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json; charset=utf-8",
+            "Authorization": `Bearer ${jwtToken}`,
+          },
+          body: JSON.stringify({ messages: newMessages }),
+        }
+      );
 
       if (
         response.redirected ||

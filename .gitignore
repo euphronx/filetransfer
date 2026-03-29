@@ -46,3 +46,4 @@ backend/logs/
 backend/files/
 backend/key/
 *.log
+temp.*

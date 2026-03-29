@@ -3,6 +3,7 @@ import {
   useState,
   useEffect,
   useRef,
+  use,
   createContext,
   useContext,
   useMemo,
@@ -30,19 +31,28 @@ function getToday() {
   return today;
 }
 
-async function getFileList(date: string | null, client: OSS) {
-  const prefix = date ? `files/${date}/` : "files/";
+async function getFileList(date: string | null, client: OSS, room: string) {
+  const prefix = date ? `rooms/${room}/${date}/` : `rooms/${room}/`;
   const fileList = (await client.list({
     prefix: prefix,
   })) as { objects: FileObj[] };
 
+  console.log(fileList);
   return fileList.objects
     .filter((f) => f.name !== prefix)
     .filter((f) => f.storageClass === "Standard")
     .map((f) => ({ name: f.name.replace(prefix, ""), url: f.url }));
 }
 
-function DropArea({ onUploadFinished, client }: { onUploadFinished: () => void; client: OSS }) {
+function DropArea({
+  onUploadFinished,
+  client,
+  room,
+}: {
+  onUploadFinished: () => void;
+  client: OSS;
+  room: string;
+}) {
   const [highlight, setHighlight] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [statusText, setStatusText] = useState("Drag & Drop files here");
@@ -56,7 +66,7 @@ function DropArea({ onUploadFinished, client }: { onUploadFinished: () => void; 
     setStatusText(`Uploading ${files.length} file${files.length > 1 ? "(s)" : ""}...`);
 
     async function getUniqueFileName(fileName: string) {
-      const fileList = await getFileList(getToday(), client);
+      const fileList = await getFileList(getToday(), client, room);
       const isFileExists = async (name: string) => fileList.some((f) => f.name === name);
 
       // Get extension name
@@ -82,7 +92,7 @@ function DropArea({ onUploadFinished, client }: { onUploadFinished: () => void; 
           const finalName = await getUniqueFileName(cleanName);
           console.log(`starting to put file ${finalName}`);
           console.time(finalName);
-          await client.put(`files/${getToday()}/${finalName}`, file);
+          await client.put(`rooms/${room}/${getToday()}/${finalName}`, file);
           console.log(`finished putting file ${finalName}`);
           console.timeEnd(finalName);
         })
@@ -241,7 +251,7 @@ function Search({
   );
 }
 
-function Form() {
+function Form({ room }: { room: string }) {
   const [date, setDate] = useState(getToday());
   const [fileList, setFileList] = useState<{ name: string; url: string }[]>([]);
   const [selectedNames, setSelectedNames] = useState<string[]>([]);
@@ -312,13 +322,15 @@ function Form() {
       setSelectedNames([]);
       if (date !== getToday()) return;
       try {
-        const newFileList = await getFileList(null, OSSClient);
+        const newFileList = await getFileList(null, OSSClient, room);
+        console.log(newFileList);
         setFileList(newFileList);
       } catch {
         console.error(`Error when getting file list of date ${date}`);
       }
     };
     updateDate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, OSSClient]);
 
   const handleCheck = (name: string) => {
@@ -334,32 +346,8 @@ function Form() {
 
   const onUploadFinished = async () => {
     if (date === getToday()) {
-      const newFileList = await getFileList(null, OSSClient);
+      const newFileList = await getFileList(null, OSSClient, room);
       setFileList(newFileList);
-    }
-
-    let ok = false;
-    let retries = 0;
-    while (!ok && retries < 5) {
-      console.log("fetch /zip");
-      const response = await fetch("https://file-trnsfer-fc-hcuthkwduw.cn-shanghai.fcapp.run/zip", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${jwtToken}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (response.status === 201) {
-        ok = true;
-        const result = await response.json();
-        console.log(result.name);
-      } else {
-        retries++;
-        if (retries < 5) {
-          await new Promise((resolve) => setTimeout(resolve, 1000 * retries));
-        }
-      }
     }
   };
 
@@ -372,25 +360,18 @@ function Form() {
     try {
       if (selectedNames.length === 1) {
         console.log(`downloading file ${selectedNames[0]}`);
-        const fileName = `files/${selectedNames[0]}`;
+        const fileName = `rooms/${room}/${selectedNames[0]}`;
         const url = OSSClient.signatureUrl(fileName, {
           "content-disposition": `attachment; filename=${selectedNames[0]}`,
           "expires": 300,
         });
         link.href = url;
         link.download = selectedNames[0];
-      } else if (
-        selectedNames.length === fileList.filter((f) => f.name.startsWith(`${date}/`)).length
-      ) {
-        const zipName = `zips/files_${date}.zip`;
-        link.href = OSSClient.signatureUrl(zipName, {
-          "content-disposition": `attachment; filename=${zipName}`,
-          "expires": 300,
-        });
       } else {
         const body = {
           date: date,
           files: selectedNames.map((f) => f.replace(`${date}/`, "")),
+          room: room,
         };
         const response = await fetch(
           "https://file-trnsfer-fc-hcuthkwduw.cn-shanghai.fcapp.run/download",
@@ -428,7 +409,7 @@ function Form() {
 
   return (
     <form className="file-form">
-      <DropArea onUploadFinished={onUploadFinished} client={OSSClient} />
+      <DropArea onUploadFinished={onUploadFinished} client={OSSClient} room={room} />
       <div>
         <div className="fetch-header">
           <h3>Fetch File</h3>
@@ -442,6 +423,7 @@ function Form() {
         </div>
         <div id="files">
           {fileList
+            .filter((f) => f.name !== `${date}/`)
             .filter((f) => f.name.startsWith(`${date}/`))
             .map((f) => (
               <div className="options" key={f.url}>
@@ -471,7 +453,8 @@ function Form() {
   );
 }
 
-export default function Success() {
+export default function Room({ params }: { params: Promise<{ roomName: string }> }) {
+  const { roomName } = use(params);
   const [authState, setAuthState] = useState({ state: 0, message: "Authenticating..." });
   return (
     <>
@@ -490,7 +473,7 @@ export default function Success() {
         <Link href={"/?change"}>Change Room</Link>
       </div>
       <authContext.Provider value={setAuthState}>
-        <Form />
+        <Form room={roomName} />
       </authContext.Provider>
 
       <footer>&copy; 2026 Jacky</footer>
