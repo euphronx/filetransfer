@@ -28,6 +28,7 @@ body {
   padding: 3px 8px;
   height: 20px;
   align-self: flex-end;
+  white-space: nowrap;
 }
 
 a:hover {
@@ -303,7 +304,7 @@ footer {
     width: 450px;
   }
 
-  form {
+  form.file-form {
     width: 450px;
   }
 
@@ -322,7 +323,7 @@ footer {
     width: 350px;
   }
 
-  form {
+  form.file-form {
     width: 350px;
   }
 
