@@ -36,10 +36,7 @@ export async function middleware(req: NextRequest) {
   if (req.nextUrl.searchParams.has("change")) return;
 
   const { pathname } = req.nextUrl;
-  const ip =
-    req.headers.get("x-nf-client-connection-ip") ||
-    req.headers.get("x-forwarded-for")?.split(",")[0] ||
-    "unknown";
+  const ip = req.headers.get("x-forwarded-for") || "unknown";
   const token = req.cookies.get("token")?.value;
 
   if (pathname.startsWith("/fail")) return NextResponse.next();
@@ -70,14 +67,18 @@ export async function middleware(req: NextRequest) {
 
   if (payload) {
     const room = payload.room;
+    console.log(`[info] Valid token from IP ${ip} to ${pathname}`);
     if (pathname === "/") {
-      console.log(`[info] Valid token from IP ${ip} to /, redirect to room ${room}`);
+      console.log(`Redirect IP ${ip} to room ${room}`);
       if (room === "main") return NextResponse.redirect(new URL("/success/", req.url)); // Redirect to /success if room is main
       return NextResponse.redirect(new URL(`/rooms/${room}/`, req.url)); // Redirect to the corresponding room
     }
     if (room !== "main" && !pathname.startsWith(`/rooms/${room}/`) && !pathname.startsWith("/auth"))
       // Go to where you should!
       return NextResponse.redirect(new URL(`/rooms/${room}/`, req.url));
+
+    if (room === "main" && pathname.startsWith("/rooms/"))
+      return NextResponse.redirect(new URL("/success", req.url));
 
     return NextResponse.next(); // Nothing happens
   } else {

@@ -212,11 +212,17 @@ app.put("/create", async (req, res) => {
 // POST /check to sign in
 app.post("/check", async (req, res) => {
   const { password } = req.body;
+  const ip = req.ip;
   if (!password) return res.status(400).json({ message: "Password is required" });
   const hash = hashPassword(password);
   const roomName = pwd[hash];
-  if (roomName) return res.status(200).json({ roomName: roomName });
-  else return res.status(401).json({ message: "Invalid password" });
+  if (roomName) {
+    console.log(`[info] Validated visit to room ${roomName} from ip ${ip}`);
+    return res.status(200).json({ roomName: roomName });
+  } else {
+    console.log(`[warn] Invalid visit from ip ${ip}`);
+    return res.status(401).json({ message: "Invalid password" });
+  }
 });
 
 // GET /wakeup to wake the server

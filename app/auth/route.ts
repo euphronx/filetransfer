@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   const params = {
     Action: "AssumeRole",
     RoleArn: process.env.OSS_ROLE_ARN,
-    RoleSessionName: `IP-${ip}`,
+    RoleSessionName: `IP-${ip}`.slice(0, 64),
     DurationSeconds: 3600,
 
     Format: "JSON",
