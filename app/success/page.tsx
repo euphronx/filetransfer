@@ -23,23 +23,49 @@ interface FileObj {
   storageClass: string;
 }
 
+const pad = (n: number) => n.toString().padStart(2, "0");
+const padDate = (time: Date) =>
+  `${time.getFullYear()}-${pad(time.getMonth() + 1)}-${pad(time.getDate())}`;
+
 function getToday() {
   const now = new Date();
-  const pad = (n: number) => n.toString().padStart(2, "0");
-  const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  return today;
+  return padDate(now);
 }
 
 async function getFileList(date: string | null, client: OSS) {
-  const prefix = date ? `files/${date}/` : "files/";
-  const fileList = (await client.list({
-    prefix: prefix,
-  })) as { objects: FileObj[] };
+  if (date) {
+    const prefix = `files/${date}/`;
+    const fileList = (await client.list({
+      prefix: prefix,
+    })) as { objects: FileObj[] };
 
-  return fileList.objects
-    .filter((f) => f.name !== prefix)
-    .filter((f) => f.storageClass === "Standard")
-    .map((f) => ({ name: f.name.replace(prefix, ""), url: f.url }));
+    return fileList.objects
+      .filter((f) => f.name !== prefix)
+      .filter((f) => f.storageClass === "Standard")
+      .map((f) => ({ name: f.name.replace(prefix, ""), url: f.url }));
+  }
+
+  const now = new Date();
+  now.setDate(now.getDate() + 1);
+  const fileList: { name: string; url: string }[] = [];
+  for (let i = 0; i < 7; i++) {
+    now.setDate(now.getDate() - 1);
+    const prefix = `files/${padDate(now)}/`;
+    const list = (await client.list({
+      prefix: prefix,
+    })) as { objects: FileObj[] };
+    const final = list.objects
+      .filter((f) => f.name !== prefix)
+      .filter((f) => f.storageClass === "Standard")
+      .map((f) => ({ name: f.name.replace("files/", ""), url: f.url }));
+
+    console.log(prefix, final);
+    fileList.push(...final);
+  }
+
+  console.log("finallist: ", fileList);
+
+  return fileList;
 }
 
 function DropArea({ onUploadFinished, client }: { onUploadFinished: () => void; client: OSS }) {
@@ -313,6 +339,7 @@ function Form() {
       if (date !== getToday()) return;
       try {
         const newFileList = await getFileList(null, OSSClient);
+        console.log(newFileList);
         setFileList(newFileList);
       } catch {
         console.error(`Error when getting file list of date ${date}`);
