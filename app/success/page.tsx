@@ -40,8 +40,7 @@ async function getFileList(date: string | null, client: OSS) {
     })) as { objects: FileObj[] };
 
     return fileList.objects
-      .filter((f) => f.name !== prefix)
-      .filter((f) => f.storageClass === "Standard")
+      .filter((f) => f.name !== prefix && f.storageClass === "Standard")
       .map((f) => ({ name: f.name.replace(prefix, ""), url: f.url }));
   }
 
@@ -55,15 +54,11 @@ async function getFileList(date: string | null, client: OSS) {
       prefix: prefix,
     })) as { objects: FileObj[] };
     const final = list.objects
-      .filter((f) => f.name !== prefix)
-      .filter((f) => f.storageClass === "Standard")
+      .filter((f) => f.name !== prefix && f.storageClass === "Standard")
       .map((f) => ({ name: f.name.replace("files/", ""), url: f.url }));
 
-    console.log(prefix, final);
     fileList.push(...final);
   }
-
-  console.log("finallist: ", fileList);
 
   return fileList;
 }
@@ -281,7 +276,7 @@ function Form() {
   // Get jwt token and client
   useEffect(() => {
     const getAuth = async () => {
-      const jwtRes = await fetch("/auth");
+      const jwtRes = await fetch("/auth/");
       if (jwtRes.status === 500 || !jwtRes.ok) {
         setAuthState({
           state: 2,
@@ -316,7 +311,7 @@ function Form() {
         stsToken,
         refreshSTSToken: async () => {
           try {
-            const response = await fetch("/auth");
+            const response = await fetch("/auth/");
             const { accessKeyId, accessKeySecret, stsToken } = await response.json();
             return { accessKeyId, accessKeySecret, stsToken };
           } catch {
@@ -339,7 +334,6 @@ function Form() {
       if (date !== getToday()) return;
       try {
         const newFileList = await getFileList(null, OSSClient);
-        console.log(newFileList);
         setFileList(newFileList);
       } catch {
         console.error(`Error when getting file list of date ${date}`);

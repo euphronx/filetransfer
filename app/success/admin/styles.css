@@ -1,0 +1,176 @@
+body {
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+
+div.container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Delete form */
+form.delete-form {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 15px 20px;
+  width: 600px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+h3 {
+  margin: 10px 10px 5px 0px;
+  display: inline-block;
+}
+
+#date {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+#date + button {
+  margin-left: 3px;
+}
+
+button[type="button"] {
+  padding: 3px 8px;
+  margin-left: 5px;
+  background: none;
+  color: #d48d21;
+  border: 1px solid #d48d21;
+  border-radius: 5px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+form #files {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 5px;
+  margin: 0 0 10px;
+}
+
+.options {
+  display: flex;
+}
+
+.checkbox-label {
+  font-weight: normal;
+  padding: 0;
+  max-width: calc(517px / 3 - 25px);
+  display: inline-block;
+  white-space: nowrap;
+  overflow-y: scroll;
+}
+
+::-webkit-scrollbar {
+  display: none;
+  width: 0;
+}
+
+.checkbox-input {
+  margin: 3px;
+}
+
+#deleteBtn {
+  display: block;
+  margin: 0 20px;
+  float: right;
+}
+
+@media (max-width: 620px) {
+  form #files {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  form.delete-form,
+  form.create-form,
+  form.duplicate-form {
+    width: 450px;
+  }
+
+  .checkbox-label {
+    max-width: calc(367px / 2 - 25px);
+  }
+}
+
+@media (max-width: 460px) {
+  form.delete-form,
+  form.create-form,
+  form.duplicate-form {
+    width: 350px;
+  }
+
+  #date + button {
+    margin-left: 5px;
+  }
+
+  form #files {
+    margin: 0 10px 10px;
+  }
+
+  .checkbox-label {
+    max-width: calc(267px / 2 - 26px);
+  }
+}
+
+/* Create room form */
+form.create-form {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 15px 20px;
+  display: flex;
+  gap: 8px;
+  flex-direction: column;
+  align-items: flex-start;
+  box-sizing: border-box;
+}
+
+form.pwd-form {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.create-form label {
+  font-size: 18px;
+  font-weight: bold;
+  display: flex;
+  justify-content: space-between;
+  width: 90%;
+}
+
+/* Duplicate form */
+div.dup-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: baseline;
+}
+
+form.duplicate-form {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 15px 20px;
+  box-sizing: border-box;
+  /* display: flex;
+  flex-direction: column;
+  justify-content: baseline;
+  align-items: baseline; */
+}
+
+div.duplicate-name {
+  font-weight: bold;
+  font-size: 16;
+}
+
+div.dup-date {
+  font-size: 11px;
+  color: #999;
+}

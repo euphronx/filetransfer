@@ -4,7 +4,7 @@ import { testSuper } from "./test-super";
 import dynamic from "next/dynamic";
 import "./styles.css";
 
-const CreateRoom = dynamic(() => import("./CreateRoom"), {
+const CreateRoom = dynamic(() => import("./Admin"), {
   loading: () => <p>Loading...</p>,
 });
 
