@@ -20,14 +20,27 @@ declare module "ali-oss" {
     res: any;
   }
 
+  interface fileInfo {
+    objects: {
+      name: string;
+      url: string;
+      lastModified: string;
+      etag: string;
+      type: "Normal";
+      size: number;
+      storageClass: "Standard" | "IA" | "Archive" | "Cold Archive" | "Deep Archive";
+    }[];
+  }
+
   export default class OSS {
     constructor(options: Options);
     put(fileName: string, file: any, options?: any): Promise<PutResult>;
-    list(options: object);
+    list(options: object): Promise<fileInfo>;
     signatureUrl(fileName: string, options: object);
     head(fileName: string, options?: object);
     delete(fileName: string, options?: object);
     deleteMulti(files: string[], options?: object);
+    get(fileName: string, downloadPath?: string, options?: object);
   }
 
   export class STS {

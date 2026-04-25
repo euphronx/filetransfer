@@ -48,3 +48,6 @@ backend/key/
 *.log
 temp.*
 *.exe
+*.old.*
+download/
+private/
