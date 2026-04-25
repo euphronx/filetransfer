@@ -1,85 +1,25 @@
-import { timingSafeEqual } from "crypto";
-import { importPKCS8, SignJWT } from "jose";
-import { getCookieToken } from "@/src/jwt";
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+"use client";
+import { authenticate } from "./authenticate";
+import { useTransition } from "react";
 import styles from "./page.module.css";
 
-const privateKey = await importPKCS8(
-  Buffer.from(process.env.PRIVATE_KEY!, "base64").toString("utf8"),
-  "RS256"
-);
-const jwtToken = await new SignJWT({ user: "authenticated" })
-  .setProtectedHeader({ alg: "RS256", kid: "transfer-key-v1" })
-  .setIssuedAt()
-  .setExpirationTime("3d")
-  .sign(privateKey);
-
 export default function Home() {
-  async function setCookie(config: Record<string, string>) {
-    "use server";
-    const token = await getCookieToken(config);
-    const cookieStore = await cookies();
-    cookieStore.set("token", token, {
-      path: "/",
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-      maxAge: 3 * 24 * 60 * 60,
+  const [isPending, startTransition] = useTransition();
+
+  async function handleSubmit(formData: FormData) {
+    startTransition(async () => {
+      await authenticate(formData);
     });
   }
 
-  async function test(formData: FormData) {
-    "use server";
-    const inputPwd = formData.get("pwd") as string;
-    const envPwd = process.env.PASSWORD || "";
-
-    const pwdBuffer = Buffer.from(envPwd, "utf8");
-    const inputBuffer = Buffer.from(inputPwd, "utf8");
-
-    const pwdView = new Uint8Array(pwdBuffer);
-    const inputView = new Uint8Array(inputBuffer);
-
-    if (pwdBuffer.length !== inputBuffer.length || !timingSafeEqual(pwdView, inputView)) {
-      const response = await fetch(
-        "https://file-trnsfer-fc-hcuthkwduw.cn-shanghai.fcapp.run/check",
-        {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${jwtToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            password: inputPwd,
-          }),
-        }
-      );
-      if (response.ok) {
-        const json = await response.json();
-        const roomName = json.roomName;
-        console.log(`[AUTH SUCCESS] Time: ${new Date().toISOString()} Room: ${roomName}`);
-        await setCookie({ room: roomName });
-        return redirect(`/rooms/${roomName}`);
-      }
-
-      console.warn(`[AUTH FAILED] Time: ${new Date().toISOString()}`);
-      return redirect("/fail");
-    }
-
-    await setCookie({ room: "main" });
-
-    console.log(`[AUTH SUCCESS] Time: ${new Date().toISOString()}`);
-
-    return redirect("/success");
-  }
   return (
-    <form className={styles.form} action={test}>
+    <form className={styles.form} action={handleSubmit}>
       <label htmlFor="pwd" style={{ fontWeight: "bold", padding: "0", fontSize: "16px" }}>
         Input password:{" "}
       </label>
-      <input type="password" id="pwd" name="pwd" minLength={1} required />
-      <button type="submit" style={{ marginLeft: "3px" }}>
-        Submit
+      <input type="password" id="pwd" name="pwd" minLength={1} required disabled={isPending} />
+      <button type="submit" style={{ marginLeft: "3px" }} disabled={isPending}>
+        {isPending ? "Authenticating..." : "Submit"}
       </button>
     </form>
   );
