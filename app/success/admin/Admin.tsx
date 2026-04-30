@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import OSS from "ali-oss";
 import "./styles.css";
+import dynamic from "next/dynamic";
 
 interface FileObj {
   name: string;
@@ -63,6 +64,9 @@ function DeleteForm({ OSSClient }: { OSSClient: OSS }) {
 
   // Delete multiple files
   async function deleteFiles() {
+    if (selectedNames.length === 0) return;
+    if (!window.confirm("Sure to delete?")) return;
+
     setDeleting(true);
     setSelectedNames([]);
     try {
@@ -191,7 +195,7 @@ function CreateRoom({ jwtToken }: { jwtToken: string }) {
           onChange={(e) => setPwd(e.target.value)}
         ></input>
       </label>
-      <button disabled={creating} type="submit" onClick={handleSubmit}>
+      <button disabled={creating} className="delete-duplicate" type="submit" onClick={handleSubmit}>
         {btnMsg}
       </button>
     </form>
@@ -203,6 +207,7 @@ function DropDuplicate({ OSSClient }: { OSSClient: OSS }) {
   const [selectedNames, setSelectedNames] = useState<string[]>([]);
   const [detectBtnMsg, setDetectBtnMsg] = useState("Detect Duplicates");
   const [btnMsg, setBtnMsg] = useState("Delete");
+  const [detecting, setDetecting] = useState(false);
 
   const handleCheck = (name: string) => {
     setSelectedNames((prev) =>
@@ -210,59 +215,69 @@ function DropDuplicate({ OSSClient }: { OSSClient: OSS }) {
     );
   };
 
-  async function detectDuplicate() {
-    setDetectBtnMsg("Detecting");
-    const now = new Date();
-    now.setDate(now.getDate() + 1);
-    const fileList: FileObj[] = [];
-    for (let i = 0; i < 7; i++) {
-      now.setDate(now.getDate() - 1);
-      const prefix = `files/${padDate(now)}/`;
-      const list = (await OSSClient.list({
-        prefix: prefix,
-      })) as { objects: FileObj[] };
-      const final = list.objects
-        .filter((f) => f.name !== prefix && f.storageClass === "Standard")
-        .map((f) => ({
-          name: f.name.replace("files/", ""),
-          url: f.url,
-          storageClass: f.storageClass,
-          size: f.size,
-        }));
-      fileList.push(...final);
-    }
+  async function detectDuplicates() {
+    try {
+      setDetectBtnMsg("Detecting");
+      setDetecting(true);
 
-    const duplicateMap = new Map<string, FileObj[]>();
-    for (const file of fileList) {
-      const fileName = file.name
-        .slice(11)
-        .split("|")
-        .pop()!
-        .replace(/^~\$/, "")
-        .replace(/\.[^\.]+$/, "");
-      if (!duplicateMap.has(fileName)) {
-        duplicateMap.set(fileName, [file]);
-      } else {
-        const old = duplicateMap.get(fileName)!;
-        duplicateMap.set(fileName, [...old, file]);
+      const now = new Date();
+      now.setDate(now.getDate() + 1);
+      const fileList: FileObj[] = [];
+      for (let i = 0; i < 7; i++) {
+        now.setDate(now.getDate() - 1);
+        const prefix = `files/${padDate(now)}/`;
+        const list = (await OSSClient.list({
+          prefix: prefix,
+        })) as { objects: FileObj[] };
+        const final = list.objects
+          .filter((f) => f.name !== prefix && f.storageClass === "Standard")
+          .map((f) => ({
+            name: f.name.replace("files/", ""),
+            url: f.url,
+            storageClass: f.storageClass,
+            size: f.size,
+          }));
+        fileList.push(...final);
       }
-    }
 
-    console.log(duplicateMap);
-
-    const duplicated: { [key: string]: FileObj[] } = {};
-    for (const [name, list] of duplicateMap) {
-      if (list.length > 1) {
-        duplicated[name] = list;
+      const duplicateMap = new Map<string, FileObj[]>();
+      for (const file of fileList) {
+        const fileName = file.name
+          .slice(11)
+          .split("|")
+          .pop()!
+          .replace(/^~\$/, "")
+          .replace(/(?:_\d+)?\.[^\.]+$/, "");
+        if (!duplicateMap.has(fileName)) {
+          duplicateMap.set(fileName, [file]);
+        } else {
+          const old = duplicateMap.get(fileName)!;
+          duplicateMap.set(fileName, [...old, file]);
+        }
       }
-    }
 
-    setDup(duplicated);
-    setDetectBtnMsg("Detect Duplicates");
+      const duplicated: { [key: string]: FileObj[] } = {};
+      for (const [name, list] of duplicateMap) {
+        if (list.length > 1) {
+          duplicated[name] = list;
+        }
+      }
+
+      setDup(duplicated);
+      setDetectBtnMsg("Detect Duplicates");
+    } catch (e) {
+      console.error("Error when getting duplicates: ", e);
+      setDetectBtnMsg("Error");
+      setTimeout(() => setDetectBtnMsg("Detect Duplicates"), 3000);
+    } finally {
+      setDetecting(false);
+    }
   }
 
-  async function deleteFiles() {
+  async function deleteDuplicates() {
     if (selectedNames.length === 0) return;
+    if (!window.confirm("Sure to delete?")) return;
+
     setBtnMsg("Deleting");
     setSelectedNames([]);
     try {
@@ -272,9 +287,9 @@ function DropDuplicate({ OSSClient }: { OSSClient: OSS }) {
     } catch (e) {
       alert(`Failed to delete: ${e}`);
     } finally {
+      detectDuplicates();
       setTimeout(() => {
         setBtnMsg("Delete");
-        detectDuplicate();
       }, 1000);
     }
   }
@@ -283,11 +298,11 @@ function DropDuplicate({ OSSClient }: { OSSClient: OSS }) {
     <form className="duplicate-form">
       <div className="dup-header">
         <h3>Drop Duplicates</h3>
-        <button type="button" onClick={detectDuplicate} disabled={detectBtnMsg === "Detecting"}>
+        <button type="button" onClick={detectDuplicates} disabled={detecting}>
           {detectBtnMsg}
         </button>
         {Object.keys(dup).length > 0 && (
-          <button type="button" onClick={deleteFiles} disabled={btnMsg === "Deleting"}>
+          <button type="button" onClick={deleteDuplicates} disabled={btnMsg === "Deleting"}>
             {btnMsg}
           </button>
         )}
@@ -331,6 +346,7 @@ function DropDuplicate({ OSSClient }: { OSSClient: OSS }) {
 export default function Admin() {
   const [jwtToken, setJwtToken] = useState<any>(null);
   const [OSSClient, setOSSCLIent] = useState<any>(null);
+  const [showTraffic, setShowTraffic] = useState(false);
 
   useEffect(() => {
     const getAuth = async () => {
@@ -367,11 +383,26 @@ export default function Admin() {
     getAuth();
   }, []);
 
+  const Traffic = dynamic(() => import("./Traffic"), {
+    loading: () => <p>Traffic is Loading...</p>,
+  });
+
   return (
-    <div className="container">
-      <DeleteForm OSSClient={OSSClient} />
-      <CreateRoom jwtToken={jwtToken} />
-      <DropDuplicate OSSClient={OSSClient} />
-    </div>
+    <>
+      {!showTraffic ? (
+        <div className="container">
+          <DeleteForm OSSClient={OSSClient} />
+          <CreateRoom jwtToken={jwtToken} />
+          <DropDuplicate OSSClient={OSSClient} />
+          <div style={{ alignSelf: "flex-end" }}>
+            <button type="button" onClick={() => setShowTraffic(true)}>
+              Show Traffic
+            </button>
+          </div>
+        </div>
+      ) : (
+        <Traffic client={OSSClient} setShowTraffic={setShowTraffic} />
+      )}
+    </>
   );
 }

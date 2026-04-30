@@ -2,7 +2,7 @@ import express from "express";
 import bodyParser from "body-parser";
 import archiver from "archiver";
 import { OpenAI } from "openai";
-import { createWriteStream, mkdirSync, writeFileSync, readFileSync } from "fs";
+import { appendFileSync, createWriteStream, mkdirSync, writeFileSync, readFileSync } from "fs";
 import crypto from "crypto";
 
 const app = express();
@@ -49,6 +49,15 @@ const systemPrompt = `你是一个专门通过 HTML 标签回答用户问题的�
 <p style="color: #333; font-size: 16px;">这是一个段落</p>
 <h2 style="color: #1a5fb4; font-size: 24px; font-weight: 600;">这是一个标题</h2>`;
 
+// Log info to log file and console
+function log(msg) {
+  const now = new Date();
+  const pad = (n) => n.toString().padStart(2, "0");
+  const time = `[${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}.${now.getMilliseconds().toString().padStart(3, "0")}]`;
+  console.log(msg);
+  appendFileSync("/home/files/traffic.log", `${time} ${msg}\n`);
+}
+
 // Functions and constants about authenetication
 const pwd = JSON.parse(readFileSync("/home/files/pwd.json", "utf8"));
 const PEPPER = process.env.PEPPER;
@@ -72,7 +81,9 @@ app.post("/download", async (req, res) => {
 
     await new Promise((resolve, reject) => {
       output.on("close", () => {
-        console.log(`Finished zipping files for ${date} with files ${files.join(", ")}.`);
+        log(
+          `[INFO] </download> Finished zipping files for ${date} with files: "${files.join('", "')}"`
+        );
         resolve();
       });
       archive.on("warning", (err) => {
@@ -109,7 +120,7 @@ app.post("/download", async (req, res) => {
       archive.finalize();
     });
 
-    console.log(`Sent zip to IP ${ip} with files: ${files.join(" ")}`);
+    log(`[INFO] </download> Sent zip to IP ${ip} with files: "${files.join('", "')}"`);
     res.json({ name: zipName });
   } catch (e) {
     console.error(e);
@@ -121,7 +132,9 @@ app.post("/download", async (req, res) => {
 app.post("/message", async (req, res) => {
   let { messages } = req.body;
   const ip = req.ip;
-  console.log(`Receive message from IP ${ip}, content: ${messages[messages.length - 1].content}`);
+  log(
+    `[INFO] </deepSeek> Receive message from IP ${ip}, content: ${messages[messages.length - 1].content}`
+  );
   messages = [{ role: "system", content: systemPrompt }, ...messages];
   res.setHeader("Content-Type", "text/plain");
   res.setHeader("Cache-Control", "no-cache");
@@ -152,7 +165,7 @@ app.post("/zip", async (req, res) => {
   try {
     await new Promise((resolve, reject) => {
       output.on("close", () => {
-        console.log(`Finished zipping files for ${today}.`);
+        log(`[INFO] </zip> Finished zipping files for ${today}`);
         resolve();
       });
       archive.on("warning", (err) => {
@@ -180,7 +193,7 @@ app.post("/zip", async (req, res) => {
         .json({ message: `Created zip file for ${today}.`, name: `files_${today}.zip` });
     });
   } catch (e) {
-    console.log(e);
+    console.error(e);
     if (!res.headersSent) res.status(500).send("Compression error");
   }
 });
@@ -190,12 +203,14 @@ app.put("/create", async (req, res) => {
   const { name, password } = req.body;
   const safeName = name.replace(/[^a-zA-Z0-9\-]+/g, "-").toLowerCase();
 
+  if (safeName === "main") return res.status(409).json({ message: "Duplicated room name" });
+
   const hashed = hashPassword(password);
   for (const [roomPwd, roomName] of Object.entries(pwd)) {
     if (roomName === safeName && hashed === roomPwd) {
       delete pwd[hashed];
       writeFileSync("/home/files/pwd.json", JSON.stringify(pwd), "utf8");
-      console.log(`Deleted room ${safeName}`);
+      log(`[INFO] </create> Deleted room ${safeName}`);
       return res.status(200).json({ message: `Deleted room ${safeName}` });
     }
     if (roomName === safeName) return res.status(409).json({ message: "Duplicated room name" });
@@ -206,27 +221,33 @@ app.put("/create", async (req, res) => {
   pwd[hash] = safeName;
   res.status(200).json({ message: `Created room ${safeName}`, roomName: safeName });
   writeFileSync("/home/files/pwd.json", JSON.stringify(pwd), "utf8");
-  console.log(`Created room ${safeName}`);
+  log(`[INFO] </create> Created room ${safeName}`);
 });
 
 // POST /check to sign in
 app.post("/check", async (req, res) => {
-  const { password } = req.body;
+  const { password, user_name: userName } = req.body;
   const ip = req.ip;
   if (!password) return res.status(400).json({ message: "Password is required" });
   const hash = hashPassword(password);
   const roomName = pwd[hash];
   if (roomName) {
-    console.log(`[info] Validated visit to room ${roomName} from ip ${ip}`);
+    log(
+      `[INFO] </check> Validated visit to room ${roomName} from ip ${ip}, user name: ${userName}`
+    );
     return res.status(200).json({ roomName: roomName });
   } else {
-    console.log(`[warn] Invalid visit from ip ${ip}`);
+    log(`[WARN] </check> Invalid visit from ip ${ip}, user name: ${userName}`);
     return res.status(401).json({ message: "Invalid password" });
   }
 });
 
-// GET /wakeup to wake the server
-app.get("/wakeup", (req, res) => res.end("ok"));
+// POST /wakeup to wake the server and log visit info
+app.post("/wakeup", (req, res) => {
+  const { user_name, room } = req.body;
+  log(`[INFO] </wakeup> User name: ${user_name}, room: ${room}`);
+  res.end("ok");
+});
 
 // Start server
 const port = 9000;

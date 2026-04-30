@@ -292,12 +292,17 @@ function Form() {
       });
       setTimeout(setAuthState, 3000, "");
 
-      // Wake up the FC server
+      // Wake up the FC server and log visit info
       fetch("https://file-trnsfer-fc-hcuthkwduw.cn-shanghai.fcapp.run/wakeup", {
         headers: {
           "Authorization": `Bearer ${jwtToken}`,
           "Content-Type": "application/json",
         },
+        method: "POST",
+        body: JSON.stringify({
+          user_name: localStorage.getItem("user_name") || "%%UNKNOWN%%",
+          room: "main",
+        }),
       });
 
       const OSS = (await import("ali-oss")).default;

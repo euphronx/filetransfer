@@ -286,6 +286,10 @@ function Form({ room }: { room: string }) {
           "Authorization": `Bearer ${jwtToken}`,
           "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          user_name: localStorage.getItem("user_name") || "%%UNKNOWN%%",
+          room: room,
+        }),
       });
 
       const OSS = (await import("ali-oss")).default;

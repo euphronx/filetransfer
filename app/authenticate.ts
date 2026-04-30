@@ -28,6 +28,7 @@ async function setCookie(config: Record<string, string>) {
 }
 
 export async function authenticate(formData: FormData) {
+  const userName = (formData.get("user") || "%%UNKNOWN%%") as string;
   const inputPwd = formData.get("pwd") as string;
   const envPwd = process.env.PASSWORD || "";
 
@@ -46,23 +47,26 @@ export async function authenticate(formData: FormData) {
       },
       body: JSON.stringify({
         password: inputPwd,
+        user_name: userName,
       }),
     });
     if (response.ok) {
       const json = await response.json();
       const roomName = json.roomName;
-      console.log(`[AUTH SUCCESS] Time: ${new Date().toISOString()} Room: ${roomName}`);
+      console.log(
+        `[AUTH SUCCESS] User name: ${userName}, time: ${new Date().toISOString()} Room: ${roomName}`
+      );
       await setCookie({ room: roomName });
       return redirect(`/rooms/${roomName}`);
     }
 
-    console.warn(`[AUTH FAILED] Time: ${new Date().toISOString()}`);
+    console.warn(`[AUTH FAILED] User name: ${userName}, time: ${new Date().toISOString()}`);
     return redirect("/fail");
   }
 
   await setCookie({ room: "main" });
 
-  console.log(`[AUTH SUCCESS] Time: ${new Date().toISOString()}`);
+  console.log(`[AUTH SUCCESS] User name: ${userName}, time: ${new Date().toISOString()}`);
 
   return redirect("/success");
 }
