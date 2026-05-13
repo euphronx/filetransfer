@@ -389,9 +389,9 @@ function Form({ room }: { room: string }) {
 
         if (!response.ok) throw "encounter an error when fetching file link";
         const { name } = await response.json();
-        const zipName = `zips/files_${date}.zip`;
+        const zipName = `files_${date}.zip`;
 
-        const url = OSSClient.signatureUrl(`zips/${name}`, {
+        const url = OSSClient.signatureUrl(`zips/temp/${name}`, {
           "content-disposition": `attachment; filename=${encodeURIComponent(zipName)}`,
           "expires": 300,
         });

@@ -3,10 +3,11 @@ import { useEffect, useState } from "react";
 import OSS from "ali-oss";
 
 interface LogInfo {
-  time: Date;
-  logLevel: string;
+  time: number;
+  ip: string;
+  level: string;
   path: string;
-  message: string;
+  msg: string;
 }
 
 export default function Traffic({
@@ -26,13 +27,13 @@ export default function Traffic({
     const text = await result.text();
 
     for (const line of text.split("\n")) {
-      const info = line.match(
-        /\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}.\d{3})\] \[(.+)\] <(\/.+)> (.+)/
-      );
-      if (info) {
-        const [, time, logLevel, path, message] = info;
-        trafficInfo.push({ time: new Date(time), logLevel, path, message });
-      }
+      if (!line) continue;
+      try {
+        const info = JSON.parse(line);
+        if (info) {
+          trafficInfo.push(info);
+        }
+      } catch {}
     }
     setContent(trafficInfo);
   }
@@ -64,8 +65,9 @@ export default function Traffic({
         <hr />
         {content.map((info, idx) => (
           <div key={idx}>
-            time: {info.time.toLocaleString()} <br />
-            log level: {info.logLevel} <br /> path: {info.path} <br /> message: {info.message}
+            Time: {new Date(info.time).toLocaleString()} <br />
+            Client IP: {info.ip} <br />
+            Log level: {info.level} <br /> Path: {info.path} <br /> Message: {info.msg}
             <hr />
           </div>
         ))}

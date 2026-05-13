@@ -1,21 +1,8 @@
 "use client";
-import {
-  useState,
-  useEffect,
-  useRef,
-  createContext,
-  useContext,
-  useMemo,
-  type Dispatch,
-  SetStateAction,
-} from "react";
+import { useState, useEffect, useRef, useMemo, type Dispatch, SetStateAction } from "react";
 import Link from "next/link";
 import "./styles.css";
 import OSS from "ali-oss";
-
-const authContext = createContext<Dispatch<
-  SetStateAction<{ state: number; message: string }>
-> | null>(null);
 
 interface FileObj {
   name: string;
@@ -63,7 +50,15 @@ async function getFileList(date: string | null, client: OSS) {
   return fileList;
 }
 
-function DropArea({ onUploadFinished, client }: { onUploadFinished: () => void; client: OSS }) {
+function DropArea({
+  onUploadFinished,
+  client,
+  jwtToken,
+}: {
+  onUploadFinished: () => void;
+  client: OSS;
+  jwtToken: string;
+}) {
   const [highlight, setHighlight] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [statusText, setStatusText] = useState("Drag & Drop files here");
@@ -96,6 +91,7 @@ function DropArea({ onUploadFinished, client }: { onUploadFinished: () => void; 
       return uniqueName;
     }
 
+    const allFiles: string[] = [];
     try {
       await Promise.all(
         files.map(async (file) => {
@@ -106,10 +102,23 @@ function DropArea({ onUploadFinished, client }: { onUploadFinished: () => void; 
           await client.put(`files/${getToday()}/${finalName}`, file);
           console.log(`finished putting file ${finalName}`);
           console.timeEnd(finalName);
+          allFiles.push(finalName);
         })
       );
 
       setStatusText("All files uploaded.");
+      fetch("https://file-trnsfer-fc-hcuthkwduw.cn-shanghai.fcapp.run/oper", {
+        method: "PUT",
+        headers: {
+          "Authorization": `Bearer ${jwtToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          oper: "upload",
+          files: allFiles,
+          date: getToday(),
+        }),
+      });
     } catch (err) {
       console.error(err);
       setStatusText("Failed to upload");
@@ -262,74 +271,13 @@ function Search({
   );
 }
 
-function Form() {
+function Form({ jwtToken, OSSClient }: { jwtToken: string; OSSClient: OSS }) {
   const [date, setDate] = useState(getToday());
   const [fileList, setFileList] = useState<{ name: string; url: string }[]>([]);
   const [selectedNames, setSelectedNames] = useState<string[]>([]);
-  const [OSSClient, setOSSCLIent] = useState<any>(null);
   const [downloading, setDownloading] = useState(false);
-  const [jwtToken, setJwtToken] = useState<any>(null);
   const [downloadUrl, setDownloadUrl] = useState("");
-  const setAuthState = useContext(authContext)!;
   let expireTimeout: NodeJS.Timeout | null = null;
-
-  // Get jwt token and client
-  useEffect(() => {
-    const getAuth = async () => {
-      const jwtRes = await fetch("/auth/");
-      if (jwtRes.status === 500 || !jwtRes.ok) {
-        setAuthState({
-          state: 2,
-          message: "Failed to authenticate",
-        });
-        throw new Error("Failed to get JWT");
-      }
-      const { accessKeyId, accessKeySecret, stsToken, bucket, jwtToken } = await jwtRes.json();
-      setJwtToken(jwtToken);
-      setAuthState({
-        state: 1,
-        message: "Successfully authenticated",
-      });
-      setTimeout(setAuthState, 3000, "");
-
-      // Wake up the FC server and log visit info
-      fetch("https://file-trnsfer-fc-hcuthkwduw.cn-shanghai.fcapp.run/wakeup", {
-        headers: {
-          "Authorization": `Bearer ${jwtToken}`,
-          "Content-Type": "application/json",
-        },
-        method: "POST",
-        body: JSON.stringify({
-          user_name: localStorage.getItem("user_name") || "%%UNKNOWN%%",
-          room: "main",
-        }),
-      });
-
-      const OSS = (await import("ali-oss")).default;
-      const client = new OSS({
-        region: "oss-cn-shanghai",
-        authorizationV4: true,
-        secure: true,
-        bucket: bucket,
-        accessKeyId,
-        accessKeySecret,
-        stsToken,
-        refreshSTSToken: async () => {
-          try {
-            const response = await fetch("/auth/");
-            const { accessKeyId, accessKeySecret, stsToken } = await response.json();
-            return { accessKeyId, accessKeySecret, stsToken };
-          } catch {
-            throw new Error("Failed to get STS");
-          }
-        },
-        refreshSTSTokenInterval: 3600000,
-      });
-      setOSSCLIent(client);
-    };
-    getAuth();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Update file list when changing selected date
   useEffect(() => {
@@ -432,15 +380,28 @@ function Form() {
 
         if (!response.ok) throw "encounter an error when fetching file link";
         const { name } = await response.json();
-        const zipName = `zips/files_${date}.zip`;
+        const zipName = `files_${date}.zip`;
 
-        const url = OSSClient.signatureUrl(`zips/${name}`, {
+        const url = OSSClient.signatureUrl(`zips/temp/${name}`, {
           "content-disposition": `attachment; filename=${encodeURIComponent(zipName)}`,
           "expires": 300,
         });
         link.href = url;
         link.download = zipName;
       }
+
+      fetch("https://file-trnsfer-fc-hcuthkwduw.cn-shanghai.fcapp.run/oper", {
+        method: "PUT",
+        headers: {
+          "Authorization": `Bearer ${jwtToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          oper: "download",
+          files: selectedNames.map((f) => f.slice(11)),
+          date,
+        }),
+      });
     } catch (e) {
       alert(`Error when downloading: ${e}`);
     } finally {
@@ -454,7 +415,7 @@ function Form() {
 
   return (
     <form className="file-form">
-      <DropArea onUploadFinished={onUploadFinished} client={OSSClient} />
+      <DropArea onUploadFinished={onUploadFinished} client={OSSClient} jwtToken={jwtToken} />
       <div>
         <div className="fetch-header">
           <h3>Fetch File</h3>
@@ -499,6 +460,70 @@ function Form() {
 
 export default function Success() {
   const [authState, setAuthState] = useState({ state: 0, message: "Authenticating..." });
+  const [OSSClient, setOSSCLIent] = useState<any>(null);
+  const [jwtToken, setJwtToken] = useState<any>(null);
+
+  // Get jwt token and client
+  useEffect(() => {
+    const getAuth = async () => {
+      const jwtRes = await fetch("/auth/");
+      if (jwtRes.status === 500 || !jwtRes.ok) {
+        setAuthState({
+          state: 2,
+          message: "Failed to authenticate",
+        });
+        throw new Error("Failed to get JWT");
+      }
+      const { accessKeyId, accessKeySecret, stsToken, bucket, jwtToken } = await jwtRes.json();
+      setJwtToken(jwtToken);
+      setAuthState({
+        state: 1,
+        message: "Successfully authenticated",
+      });
+      setTimeout(setAuthState, 3000, "");
+
+      // Wake up the FC server and log visit info
+      const wakeTime = sessionStorage.getItem("wake_time");
+      if (!wakeTime || Date.now() - parseInt(wakeTime) > 600000) {
+        fetch("https://file-trnsfer-fc-hcuthkwduw.cn-shanghai.fcapp.run/wakeup", {
+          headers: {
+            "Authorization": `Bearer ${jwtToken}`,
+            "Content-Type": "application/json",
+          },
+          method: "POST",
+          body: JSON.stringify({
+            user_name: localStorage.getItem("user_name") || "%%UNKNOWN%%",
+            room: "main",
+          }),
+        });
+        sessionStorage.setItem("wake_time", Date.now().toString());
+      }
+
+      const OSS = (await import("ali-oss")).default;
+      const client = new OSS({
+        region: "oss-cn-shanghai",
+        authorizationV4: true,
+        secure: true,
+        bucket: bucket,
+        accessKeyId,
+        accessKeySecret,
+        stsToken,
+        refreshSTSToken: async () => {
+          try {
+            const response = await fetch("/auth/");
+            const { accessKeyId, accessKeySecret, stsToken } = await response.json();
+            return { accessKeyId, accessKeySecret, stsToken };
+          } catch {
+            throw new Error("Failed to get STS");
+          }
+        },
+        refreshSTSTokenInterval: 3600000,
+      });
+      setOSSCLIent(client);
+    };
+    getAuth();
+  }, []);
+
   return (
     <>
       {authState.message && (
@@ -515,9 +540,7 @@ export default function Success() {
         <Link href={"/deepseek"}>DeepSeek</Link>
         <Link href={"/?change"}>Change Room</Link>
       </div>
-      <authContext.Provider value={setAuthState}>
-        <Form />
-      </authContext.Provider>
+      <Form jwtToken={jwtToken} OSSClient={OSSClient} />
 
       <footer>&copy; 2026 Jacky</footer>
     </>

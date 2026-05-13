@@ -2,11 +2,18 @@ import express from "express";
 import bodyParser from "body-parser";
 import archiver from "archiver";
 import { OpenAI } from "openai";
-import { appendFileSync, createWriteStream, mkdirSync, writeFileSync, readFileSync } from "fs";
+import {
+  appendFileSync,
+  createWriteStream,
+  existsSync,
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+} from "fs";
 import crypto from "crypto";
 
 const app = express();
-mkdirSync("/home/files/zips", { recursive: true });
+mkdirSync("/home/files/zips/temp", { recursive: true });
 
 // middlewares
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -49,17 +56,22 @@ const systemPrompt = `你是一个专门通过 HTML 标签回答用户问题的�
 <p style="color: #333; font-size: 16px;">这是一个段落</p>
 <h2 style="color: #1a5fb4; font-size: 24px; font-weight: 600;">这是一个标题</h2>`;
 
+const PWD_FILE = "/home/files/pwd.json";
+const ZIPPED_FILE = "/home/files/zipped.json";
+
+if (!existsSync(PWD_FILE)) writeFileSync(PWD_FILE, "{}", "utf8");
+if (!existsSync(ZIPPED_FILE)) writeFileSync(ZIPPED_FILE, "{}", "utf8");
+
 // Log info to log file and console
-function log(msg) {
-  const now = new Date();
-  const pad = (n) => n.toString().padStart(2, "0");
-  const time = `[${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}.${now.getMilliseconds().toString().padStart(3, "0")}]`;
-  console.log(msg);
-  appendFileSync("/home/files/traffic.log", `${time} ${msg}\n`);
+function log(ip, level, path, msg) {
+  const json = { time: Date.now(), ip, level, path, msg };
+  const str = JSON.stringify(json);
+  console.log(str);
+  appendFileSync("/home/files/traffic.log", `${str}\n`);
 }
 
 // Functions and constants about authenetication
-const pwd = JSON.parse(readFileSync("/home/files/pwd.json", "utf8"));
+const pwd = JSON.parse(readFileSync(PWD_FILE, "utf8"));
 const PEPPER = process.env.PEPPER;
 function hashPassword(password) {
   const hash = crypto.pbkdf2Sync(password, PEPPER, 100000, 64, "sha512").toString("hex");
@@ -67,22 +79,47 @@ function hashPassword(password) {
 }
 
 // POST /download to download single file or zip
+const zippedFiles = JSON.parse(readFileSync(ZIPPED_FILE, "utf8"));
+{
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  for (const [k, v] of Object.entries(zippedFiles)) {
+    const zipDate = new Date(v.time);
+    if (
+      today - new Date(zipDate.getFullYear(), zipDate.getMonth(), zipDate.getDate()) >=
+      86400000
+    ) {
+      delete zippedFiles[k];
+    }
+  }
+  writeFileSync(ZIPPED_FILE, JSON.stringify(zippedFiles), "utf8");
+}
 app.post("/download", async (req, res) => {
   const { date, files, room } = req.body;
   const ip = req.ip;
   if (!date || !files) return res.status(400).send("Missing params");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).send("Invalid date format.");
 
-  const zipName = `files_${date}_${Math.random().toString(36).slice(2, 6)}.zip`;
+  const key = files.sort().join("|");
+  if (zippedFiles[key]) {
+    log(ip, "INFO", "/download", `Sent zip to IP ${ip} with files: "${files.join('", "')}"`);
+    return res.json({ name: `files_${date}_${zippedFiles[key].name}.zip` });
+  }
+
+  const rand = Math.random().toString(36).slice(2, 6);
+  const zipName = `files_${date}_${rand}.zip`;
   const archive = archiver("zip", { zlib: { level: 5 } });
 
   try {
-    const output = createWriteStream(`/home/files/zips/${zipName}`);
+    const output = createWriteStream(`/home/files/zips/temp/${zipName}`);
 
     await new Promise((resolve, reject) => {
       output.on("close", () => {
         log(
-          `[INFO] </download> Finished zipping files for ${date} with files: "${files.join('", "')}"`
+          ip,
+          "INFO",
+          "/download",
+          `Finished zipping files for ${date} with files: "${files.join('", "')}"`
         );
         resolve();
       });
@@ -120,8 +157,10 @@ app.post("/download", async (req, res) => {
       archive.finalize();
     });
 
-    log(`[INFO] </download> Sent zip to IP ${ip} with files: "${files.join('", "')}"`);
+    log(ip, "INFO", "/download", `Sent zip to IP ${ip} with files: "${files.join('", "')}"`);
     res.json({ name: zipName });
+    zippedFiles[key] = { time: Date.now(), name: rand };
+    writeFileSync(ZIPPED_FILE, JSON.stringify(zippedFiles), "utf8");
   } catch (e) {
     console.error(e);
     if (!res.headersSent) res.status(500).send("Failed to create zip file");
@@ -133,7 +172,10 @@ app.post("/message", async (req, res) => {
   let { messages } = req.body;
   const ip = req.ip;
   log(
-    `[INFO] </deepSeek> Receive message from IP ${ip}, content: ${messages[messages.length - 1].content}`
+    ip,
+    "INFO",
+    "/deepseek",
+    `Receive message from IP ${ip}, content: ${messages[messages.length - 1].content}`
   );
   messages = [{ role: "system", content: systemPrompt }, ...messages];
   res.setHeader("Content-Type", "text/plain");
@@ -141,7 +183,7 @@ app.post("/message", async (req, res) => {
 
   const response = await openai.chat.completions.create({
     messages: messages,
-    model: "deepseek-chat",
+    model: "deepseek-v4-flash",
     stream: true,
     temperature: 0.7,
   });
@@ -162,10 +204,13 @@ app.post("/zip", async (req, res) => {
   const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   const archive = archiver("zip", { zlib: { level: 8 } });
   const output = createWriteStream(`/home/files/zips/files_${today}.zip`);
+
+  res.status(201).json({ message: `Created zip file for ${today}.`, name: `files_${today}.zip` });
+
   try {
     await new Promise((resolve, reject) => {
       output.on("close", () => {
-        log(`[INFO] </zip> Finished zipping files for ${today}`);
+        log(req.ip, "INFO", "/zip", `Finished zipping files for ${today}`);
         resolve();
       });
       archive.on("warning", (err) => {
@@ -187,10 +232,6 @@ app.post("/zip", async (req, res) => {
       archive.pipe(output);
       archive.directory(`/home/files/files/${today}`, false);
       archive.finalize();
-
-      res
-        .status(201)
-        .json({ message: `Created zip file for ${today}.`, name: `files_${today}.zip` });
     });
   } catch (e) {
     console.error(e);
@@ -198,8 +239,23 @@ app.post("/zip", async (req, res) => {
   }
 });
 
+// Log download, upload and delete
+app.put("/oper", async (req, res) => {
+  const ip = req.ip;
+  const { oper, files, date } = req.body;
+  if (!oper || !files || !date) return res.status(400).send("Missing params");
+  log(
+    ip,
+    "INFO",
+    "/oper",
+    `Operation ${oper.toUpperCase()} for date ${date} on files: "${files.join('", "')}"`
+  );
+  res.status(200).json({ message: "Operation logged." });
+});
+
 // Create new rooms
 app.put("/create", async (req, res) => {
+  const ip = req.ip;
   const { name, password } = req.body;
   const safeName = name.replace(/[^a-zA-Z0-9\-]+/g, "-").toLowerCase();
 
@@ -209,8 +265,8 @@ app.put("/create", async (req, res) => {
   for (const [roomPwd, roomName] of Object.entries(pwd)) {
     if (roomName === safeName && hashed === roomPwd) {
       delete pwd[hashed];
-      writeFileSync("/home/files/pwd.json", JSON.stringify(pwd), "utf8");
-      log(`[INFO] </create> Deleted room ${safeName}`);
+      writeFileSync(PWD_FILE, JSON.stringify(pwd), "utf8");
+      log(ip, "INFO", "/create", `Deleted room ${safeName}`);
       return res.status(200).json({ message: `Deleted room ${safeName}` });
     }
     if (roomName === safeName) return res.status(409).json({ message: "Duplicated room name" });
@@ -220,8 +276,8 @@ app.put("/create", async (req, res) => {
   const hash = hashPassword(password);
   pwd[hash] = safeName;
   res.status(200).json({ message: `Created room ${safeName}`, roomName: safeName });
-  writeFileSync("/home/files/pwd.json", JSON.stringify(pwd), "utf8");
-  log(`[INFO] </create> Created room ${safeName}`);
+  writeFileSync(PWD_FILE, JSON.stringify(pwd), "utf8");
+  log(ip, "INFO", "/create", `Created room ${safeName}`);
 });
 
 // POST /check to sign in
@@ -233,11 +289,14 @@ app.post("/check", async (req, res) => {
   const roomName = pwd[hash];
   if (roomName) {
     log(
-      `[INFO] </check> Validated visit to room ${roomName} from ip ${ip}, user name: ${userName}`
+      ip,
+      "INFO",
+      "/check",
+      `Validated visit to room ${roomName} from ip ${ip}, user name: ${userName}`
     );
     return res.status(200).json({ roomName: roomName });
   } else {
-    log(`[WARN] </check> Invalid visit from ip ${ip}, user name: ${userName}`);
+    log(ip, "WARN", "/check", `Invalid visit from ip ${ip}, user name: ${userName}`);
     return res.status(401).json({ message: "Invalid password" });
   }
 });
@@ -245,7 +304,7 @@ app.post("/check", async (req, res) => {
 // POST /wakeup to wake the server and log visit info
 app.post("/wakeup", (req, res) => {
   const { user_name, room } = req.body;
-  log(`[INFO] </wakeup> User name: ${user_name}, room: ${room}`);
+  log(req.ip, "INFO", "/wakeup", `User log in, user name: ${user_name}, room: ${room}`);
   res.end("ok");
 });
 

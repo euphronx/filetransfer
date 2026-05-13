@@ -31,7 +31,7 @@ async function getFileList(date: string, client: OSS) {
     .map((f) => ({ name: f.name.replace(prefix, ""), url: f.url }));
 }
 
-function DeleteForm({ OSSClient }: { OSSClient: OSS }) {
+function DeleteForm({ OSSClient, jwtToken }: { OSSClient: OSS; jwtToken: string }) {
   const [date, setDate] = useState(getToday());
   const [fileList, setFileList] = useState<{ name: string; url: string }[]>([]);
   const [selectedNames, setSelectedNames] = useState<string[]>([]);
@@ -72,8 +72,42 @@ function DeleteForm({ OSSClient }: { OSSClient: OSS }) {
     try {
       const files = selectedNames.map((f) => `files/${date}/${f}`);
       await OSSClient!.deleteMulti(files);
+      fetch("https://file-trnsfer-fc-hcuthkwduw.cn-shanghai.fcapp.run/oper", {
+        method: "PUT",
+        headers: {
+          "Authorization": `Bearer ${jwtToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          oper: "delete",
+          files: files.map((f) => f.slice(17)),
+          date,
+        }),
+      });
+
+      (async function () {
+        if (window.confirm("Send /zip request?")) {
+          const response = await fetch(
+            "https://file-trnsfer-fc-hcuthkwduw.cn-shanghai.fcapp.run/zip",
+            {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${jwtToken}`,
+                "Content-Type": "application/json",
+              },
+            }
+          );
+
+          if (response.status === 201) {
+            const result = await response.json();
+            console.log(result.name);
+          } else {
+            window.alert("Failed to zip");
+          }
+        }
+      })();
     } catch (e) {
-      alert(`Failed to delete: ${e}`);
+      window.alert(`Failed to delete: ${e}`);
     } finally {
       setDeleting(false);
       const newFileList = await getFileList(date, OSSClient!);
@@ -202,7 +236,7 @@ function CreateRoom({ jwtToken }: { jwtToken: string }) {
   );
 }
 
-function DropDuplicate({ OSSClient }: { OSSClient: OSS }) {
+function DropDuplicate({ OSSClient, jwtToken }: { OSSClient: OSS; jwtToken: string }) {
   const [dup, setDup] = useState<{ [key: string]: FileObj[] }>({});
   const [selectedNames, setSelectedNames] = useState<string[]>([]);
   const [detectBtnMsg, setDetectBtnMsg] = useState("Detect Duplicates");
@@ -244,7 +278,7 @@ function DropDuplicate({ OSSClient }: { OSSClient: OSS }) {
       for (const file of fileList) {
         const fileName = file.name
           .slice(11)
-          .split("|")
+          .split("/")
           .pop()!
           .replace(/^~\$/, "")
           .replace(/(?:_\d+)?\.[^\.]+$/, "");
@@ -284,8 +318,20 @@ function DropDuplicate({ OSSClient }: { OSSClient: OSS }) {
       const files = selectedNames.map((f) => `files/${f}`);
       await OSSClient!.deleteMulti(files);
       setBtnMsg("Deleted");
+      fetch("https://file-trnsfer-fc-hcuthkwduw.cn-shanghai.fcapp.run/oper", {
+        method: "PUT",
+        headers: {
+          "Authorization": `Bearer ${jwtToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          oper: "delete",
+          files: files.map((f) => f.slice(6)),
+          date: "[MULTI]",
+        }),
+      });
     } catch (e) {
-      alert(`Failed to delete: ${e}`);
+      window.alert(`Failed to delete: ${e}`);
     } finally {
       detectDuplicates();
       setTimeout(() => {
@@ -391,9 +437,9 @@ export default function Admin() {
     <>
       {!showTraffic ? (
         <div className="container">
-          <DeleteForm OSSClient={OSSClient} />
+          <DeleteForm OSSClient={OSSClient} jwtToken={jwtToken} />
           <CreateRoom jwtToken={jwtToken} />
-          <DropDuplicate OSSClient={OSSClient} />
+          <DropDuplicate OSSClient={OSSClient} jwtToken={jwtToken} />
           <div style={{ alignSelf: "flex-end" }}>
             <button type="button" onClick={() => setShowTraffic(true)}>
               Show Traffic
