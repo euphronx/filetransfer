@@ -86,7 +86,7 @@ function DeleteForm({ OSSClient, jwtToken }: { OSSClient: OSS; jwtToken: string 
       });
 
       (async function () {
-        if (window.confirm("Send /zip request?")) {
+        if (date == getToday() && window.confirm("Send /zip request?")) {
           const response = await fetch(
             "https://file-trnsfer-fc-hcuthkwduw.cn-shanghai.fcapp.run/zip",
             {

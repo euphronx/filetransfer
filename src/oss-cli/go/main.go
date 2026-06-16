@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -74,7 +75,7 @@ func main() {
 		var action int
 		err := survey.AskOne(&survey.Select{
 			Message: "Select an action",
-			Options: []string{"1. Upload", "2. Download", "3. Delete", "4. Exit"},
+			Options: []string{"1. Upload", "2. Download", "3. Delete", "4. Search", "5. Exit"},
 		}, &action)
 		if err != nil && err == terminal.InterruptErr {
 			fmt.Println()
@@ -215,6 +216,50 @@ func main() {
 			}
 
 		case 3:
+			// Search
+			var target string
+			err := survey.AskOne(&survey.Input{Message: "Type in the search target"}, &target)
+			if err == terminal.InterruptErr {
+				fmt.Print("Cancel search\n\n")
+				continue
+			}
+			target = strings.ToLower(target)
+
+			date := time.Now().AddDate(0, 0, 1)
+			found := false
+			cnt := 0
+			for ; !found; cnt++ {
+				if cnt%20 == 0 && cnt > 0 {
+					var conti bool
+					err := survey.AskOne(&survey.Confirm{
+						Message: fmt.Sprintf("Found %d dates, continue?", cnt),
+					}, &conti)
+					if err == terminal.InterruptErr || !conti {
+						fmt.Print("Cancel search\n\n")
+						break
+					}
+				}
+
+				date = date.AddDate(0, 0, -1)
+				files, err := listObj(fmt.Sprintf("files/%s", date.Format("2006-01-02")))
+				if err != nil {
+					fmt.Println(fmt.Errorf("Error when getting files in date %s: %w\n", date.Format("2026-01-02"), err))
+				}
+				for _, f := range files {
+					if strings.Contains(strings.ToLower(f.name), target) {
+						fmt.Printf("Found file %s for date %s\n\n", f.name, date.Format("2006-01-02"))
+						conti := false
+						survey.AskOne(&survey.Confirm{Message: "Continue to search?"}, &conti)
+						if !conti {
+							found = true
+							// fmt.Printf("not continue")
+							break
+						}
+					}
+				}
+			}
+
+		case 4:
 			// Exit
 			fmt.Println()
 			os.Exit(0)

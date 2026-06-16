@@ -19,7 +19,10 @@ function getToday() {
   return padDate(now);
 }
 
-async function getFileList(date: string | null, client: OSS) {
+async function getFileList(
+  date: string | null,
+  client: OSS
+): Promise<{ name: string; url: string; storageClass: string }[]> {
   if (date) {
     const prefix = `files/${date}/`;
     const fileList = (await client.list({
@@ -27,22 +30,31 @@ async function getFileList(date: string | null, client: OSS) {
     })) as { objects: FileObj[] };
 
     return fileList.objects
-      .filter((f) => f.name !== prefix && f.storageClass === "Standard")
-      .map((f) => ({ name: f.name.replace(prefix, ""), url: f.url }));
+      .filter((f) => f.name !== prefix)
+      .map((f) => ({
+        name: f.name.replace("files/", ""),
+        url: f.url,
+        storageClass: f.storageClass,
+      }));
   }
 
   const now = new Date();
+  now.setHours(0, 0, 0, 0);
   now.setDate(now.getDate() + 1);
-  const fileList: { name: string; url: string }[] = [];
-  for (let i = 0; i < 7; i++) {
+  const fileList: { name: string; url: string; storageClass: string }[] = [];
+  for (let i = 0; i < 8; i++) {
     now.setDate(now.getDate() - 1);
     const prefix = `files/${padDate(now)}/`;
     const list = (await client.list({
       prefix: prefix,
     })) as { objects: FileObj[] };
     const final = list.objects
-      .filter((f) => f.name !== prefix && f.storageClass === "Standard")
-      .map((f) => ({ name: f.name.replace("files/", ""), url: f.url }));
+      .filter((f) => f.name !== prefix)
+      .map((f) => ({
+        name: f.name.replace("files/", ""),
+        url: f.url,
+        storageClass: f.storageClass,
+      }));
 
     fileList.push(...final);
   }
@@ -72,7 +84,13 @@ function DropArea({
     setStatusText(`Uploading ${files.length} file${files.length > 1 ? "(s)" : ""}...`);
 
     async function getUniqueFileName(fileName: string) {
-      const fileList = await getFileList(getToday(), client);
+      const today = getToday();
+      let fileList = await getFileList(today, client);
+      fileList = fileList.map((f) => ({
+        name: f.name.replace(`${today}/`, ""),
+        url: f.url,
+        storageClass: f.storageClass,
+      }));
       const isFileExists = async (name: string) => fileList.some((f) => f.name === name);
 
       // Get extension name
@@ -98,8 +116,18 @@ function DropArea({
           const cleanName = file.name.replace(/[/\\?%*:|"<>]/g, "_").replace(/\.\./g, "");
           const finalName = await getUniqueFileName(cleanName);
           console.log(`starting to put file ${finalName}`);
+          const parallel = 5;
+          const partSize = 32 * 1024 * 1024;
           console.time(finalName);
-          await client.put(`files/${getToday()}/${finalName}`, file);
+          if (file.size < 104857600) {
+            // Less than 100 MB
+            await client.put(`files/${getToday()}/${finalName}`, file, {
+              parallel: parallel,
+              partSize: partSize,
+            });
+          } else {
+            await client.multipartUpload(`files/${getToday()}/${finalName}`, file);
+          }
           console.log(`finished putting file ${finalName}`);
           console.timeEnd(finalName);
           allFiles.push(finalName);
@@ -273,7 +301,10 @@ function Search({
 
 function Form({ jwtToken, OSSClient }: { jwtToken: string; OSSClient: OSS }) {
   const [date, setDate] = useState(getToday());
-  const [fileList, setFileList] = useState<{ name: string; url: string }[]>([]);
+  const [fetchedDate, setFetchedDate] = useState<string[]>([]);
+  const [fileList, setFileList] = useState<{ name: string; url: string; storageClass: string }[]>(
+    []
+  );
   const [selectedNames, setSelectedNames] = useState<string[]>([]);
   const [downloading, setDownloading] = useState(false);
   const [downloadUrl, setDownloadUrl] = useState("");
@@ -284,15 +315,27 @@ function Form({ jwtToken, OSSClient }: { jwtToken: string; OSSClient: OSS }) {
     const updateDate = async () => {
       if (!OSSClient) return;
       setSelectedNames([]);
-      if (date !== getToday()) return;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const target = new Date(date);
+      target.setHours(0, 0, 0, 0);
+      const days = Math.ceil((today.getTime() - target.getTime()) / (1000 * 60 * 60 * 24));
+      let dateList: { name: string; url: string; storageClass: string }[] = [];
       try {
-        const newFileList = await getFileList(null, OSSClient);
-        setFileList(newFileList);
+        if (date === getToday()) {
+          const newFileList = await getFileList(null, OSSClient);
+          setFileList(newFileList);
+        } else if (days > 7 && !fetchedDate.includes(date)) {
+          setFetchedDate((prev) => [...prev, date]);
+          dateList = await getFileList(date, OSSClient);
+          setFileList((prev) => [...prev, ...dateList]);
+        }
       } catch {
         console.error(`Error when getting file list of date ${date}`);
       }
     };
     updateDate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, OSSClient]);
 
   const handleCheck = (name: string) => {
@@ -431,7 +474,10 @@ function Form({ jwtToken, OSSClient }: { jwtToken: string; OSSClient: OSS }) {
           {fileList
             .filter((f) => f.name.startsWith(`${date}/`))
             .map((f) => (
-              <div className="options" key={f.url}>
+              <div
+                className={`options${f.storageClass === "Standard" ? "" : " options-blue"}`}
+                key={f.url}
+              >
                 <input
                   type="checkbox"
                   id={f.url}

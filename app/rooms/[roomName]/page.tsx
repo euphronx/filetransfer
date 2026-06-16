@@ -286,9 +286,10 @@ function Form({ room }: { room: string }) {
           "Authorization": `Bearer ${jwtToken}`,
           "Content-Type": "application/json",
         },
+        method: "POST",
         body: JSON.stringify({
           user_name: localStorage.getItem("user_name") || "%%UNKNOWN%%",
-          room: room,
+          room: "main",
         }),
       });
 

@@ -35,6 +35,7 @@ declare module "ali-oss" {
   export default class OSS {
     constructor(options: Options);
     put(fileName: string, file: any, options?: any): Promise<PutResult>;
+    multipartUpload(fileName: string, data: any, options?: any): Promise<PutResult>;
     list(options: object): Promise<fileInfo>;
     signatureUrl(fileName: string, options: object);
     head(fileName: string, options?: object);

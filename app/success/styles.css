@@ -244,6 +244,9 @@ button.reg-btn {
 .options {
   display: flex;
 }
+.options.options-blue {
+  color: #0000ff;
+}
 
 .checkbox-label {
   font-weight: normal;

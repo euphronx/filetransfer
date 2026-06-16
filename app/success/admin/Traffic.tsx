@@ -60,9 +60,11 @@ export default function Traffic({
         <button type="button" onClick={clearLog}>
           Clear Log
         </button>
+        <button type="button" onClick={getContent}>
+          Refresh
+        </button>
       </div>
       <div className="log-content">
-        <hr />
         {content.map((info, idx) => (
           <div key={idx}>
             Time: {new Date(info.time).toLocaleString()} <br />
