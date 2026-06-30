@@ -16,7 +16,7 @@ func getFileByDate() (string, []FileInfo, error) {
 	valid := false
 	for !valid {
 		err := survey.AskOne(&survey.Input{
-			Message: "Type in the date (formatted in \"YYYY-MM-DD\")",
+			Message: "Enter the date (formatted in \"YYYY-MM-DD\")",
 		}, &date)
 		if err != nil {
 			if err == terminal.InterruptErr {

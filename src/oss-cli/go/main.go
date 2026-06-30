@@ -75,7 +75,7 @@ func main() {
 		var action int
 		err := survey.AskOne(&survey.Select{
 			Message: "Select an action",
-			Options: []string{"1. Upload", "2. Download", "3. Delete", "4. Search", "5. Exit"},
+			Options: []string{"1. Upload", "2. Download", "3. Delete", "4. Rename", "5. Search", "6. Exit"},
 		}, &action)
 		if err != nil && err == terminal.InterruptErr {
 			fmt.Println()
@@ -216,9 +216,45 @@ func main() {
 			}
 
 		case 3:
+			// Rename
+			date, fileInfo, err := getFileByDate()
+			if err == terminal.InterruptErr {
+				fmt.Print("Cancel rename\n\n")
+				continue
+			} else if err != nil {
+				log.Fatalf("Failed to list objects: %v", err)
+			}
+
+			if fileInfo == nil {
+				fmt.Printf("No files found on date %s\n\n", date)
+				continue
+			}
+
+			var options []string
+			for _, file := range fileInfo {
+				options = append(options, string([]rune(file.name)[17:]))
+			}
+
+			var srcName string
+			err = survey.AskOne(&survey.Select{
+				Message: "Select the file to rename",
+				Options: options,
+			}, &srcName)
+			var destName string
+			err = survey.AskOne(&survey.Input{Message: "Enter the new name: "}, &destName)
+			if err == terminal.InterruptErr {
+				fmt.Print("Cancel rename\n\n")
+				continue
+			}
+			err = renameObj(fmt.Sprintf("files/%s/%s", date, srcName), fmt.Sprintf("files/%s/%s", date, destName))
+			if err != nil {
+				log.Fatalf("Failed to rename: %v", err)
+			}
+
+		case 4:
 			// Search
 			var target string
-			err := survey.AskOne(&survey.Input{Message: "Type in the search target"}, &target)
+			err := survey.AskOne(&survey.Input{Message: "Enter the search target"}, &target)
 			if err == terminal.InterruptErr {
 				fmt.Print("Cancel search\n\n")
 				continue
@@ -259,7 +295,7 @@ func main() {
 				}
 			}
 
-		case 4:
+		case 5:
 			// Exit
 			fmt.Println()
 			os.Exit(0)

@@ -42,6 +42,8 @@ declare module "ali-oss" {
     delete(fileName: string, options?: object);
     deleteMulti(files: string[], options?: object);
     get(fileName: string, downloadPath?: string, options?: object);
+    restore(fileName: string, options?: object);
+    copy(dest: string, src: string, options?: object);
   }
 
   export class STS {

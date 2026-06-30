@@ -35,7 +35,11 @@ function DeleteForm({ OSSClient, jwtToken }: { OSSClient: OSS; jwtToken: string 
   const [date, setDate] = useState(getToday());
   const [fileList, setFileList] = useState<{ name: string; url: string }[]>([]);
   const [selectedNames, setSelectedNames] = useState<string[]>([]);
+  const [btnMsg, setBtnMsg] = useState("Delete");
   const [deleting, setDeleting] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [editingName, setEditingName] = useState<string | null>(null);
+  const [tempName, setTempName] = useState("");
 
   // Update file list when changing selected date
   useEffect(() => {
@@ -68,6 +72,7 @@ function DeleteForm({ OSSClient, jwtToken }: { OSSClient: OSS; jwtToken: string 
     if (!window.confirm("Sure to delete?")) return;
 
     setDeleting(true);
+    setBtnMsg("Deleting");
     setSelectedNames([]);
     try {
       const files = selectedNames.map((f) => `files/${date}/${f}`);
@@ -110,8 +115,25 @@ function DeleteForm({ OSSClient, jwtToken }: { OSSClient: OSS; jwtToken: string 
       window.alert(`Failed to delete: ${e}`);
     } finally {
       setDeleting(false);
+      setBtnMsg("Delete");
       const newFileList = await getFileList(date, OSSClient!);
       setFileList(newFileList);
+    }
+  }
+
+  async function renameFile(dest: string, src: string) {
+    setRenaming(true);
+    setBtnMsg("Renaming");
+    try {
+      await OSSClient.copy(dest, src);
+      await OSSClient.delete(src);
+      setFileList(await getFileList(date, OSSClient));
+    } catch (e) {
+      console.error(`Failed to rename file: ${e}`);
+      window.alert("Failed to rename");
+    } finally {
+      setRenaming(false);
+      setBtnMsg("Delete");
     }
   }
 
@@ -133,14 +155,48 @@ function DeleteForm({ OSSClient, jwtToken }: { OSSClient: OSS; jwtToken: string 
                 checked={selectedNames.includes(f.name)}
                 onChange={() => handleCheck(f.name)}
               ></input>
-              <label htmlFor={f.url} className="checkbox-label">
-                {f.name}
-              </label>
+              {editingName === f.name ? (
+                <input
+                  type="text"
+                  value={tempName}
+                  onChange={(e) => setTempName(e.target.value)}
+                  onBlur={async () => {
+                    setEditingName(null);
+                    if (tempName && tempName !== f.name) {
+                      const src = `files/${date}/${f.name}`;
+                      const dest = `files/${date}/${tempName}`;
+                      if (!window.confirm("Sure to rename?")) return;
+                      await renameFile(dest, src);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      (e.target as HTMLInputElement).blur();
+                    }
+                    if (e.key === "Escape") {
+                      setEditingName(null); // Cancel editing
+                    }
+                  }}
+                  autoFocus
+                  onClick={(e) => e.stopPropagation()} // Prevent checking checkbox
+                />
+              ) : (
+                <label
+                  htmlFor={f.url}
+                  className="checkbox-label"
+                  onDoubleClick={() => {
+                    setEditingName(f.name);
+                    setTempName(f.name);
+                  }}
+                >
+                  {f.name}
+                </label>
+              )}
             </div>
           ))}
         </div>
-        <button type="button" id="deleteBtn" onClick={deleteFiles}>
-          {deleting ? "Deleting" : "Delete"}
+        <button type="button" id="deleteBtn" onClick={deleteFiles} disabled={deleting || renaming}>
+          {btnMsg}
         </button>
       </div>
     </form>

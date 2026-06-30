@@ -308,6 +308,7 @@ function Form({ jwtToken, OSSClient }: { jwtToken: string; OSSClient: OSS }) {
   const [selectedNames, setSelectedNames] = useState<string[]>([]);
   const [downloading, setDownloading] = useState(false);
   const [downloadUrl, setDownloadUrl] = useState("");
+  const [notice, setNotice] = useState("");
   let expireTimeout: NodeJS.Timeout | null = null;
 
   // Update file list when changing selected date
@@ -380,31 +381,87 @@ function Form({ jwtToken, OSSClient }: { jwtToken: string; OSSClient: OSS }) {
     }
   };
 
+  async function getRestoreStatus(
+    fileName: string
+  ): Promise<"restoring" | "restored" | "unrestored"> {
+    const res = await OSSClient.head(fileName);
+    const restore = res.res.headers["x-oss-restore"];
+    if (!restore) return "unrestored";
+    else if (restore.includes('ongoing-request="false"')) return "restored";
+    else return "restoring";
+  }
+
   async function downloadFiles() {
-    if (selectedNames.length === 0) return;
+    if (selectedNames.length === 0 || downloading) return;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(date);
+    target.setHours(0, 0, 0, 0);
+    const days = Math.ceil((today.getTime() - target.getTime()) / (1000 * 60 * 60 * 24));
+    if (days > 7 && selectedNames.length > 1) {
+      window.alert("Some of the selected files are archived, please download one by one.");
+      setNotice("Some of the selected files are archived, please download one by one.");
+      setTimeout(() => setNotice(""), 5000);
+      return;
+    }
+
     setDownloadUrl("");
     setDownloading(true);
     const link = document.createElement("a");
     if (expireTimeout) clearTimeout(expireTimeout);
+
     try {
       if (selectedNames.length === 1) {
-        console.log(`downloading file ${selectedNames[0]}`);
-        const fileName = `files/${selectedNames[0]}`;
+        // Download single file
+        const selectedFile = selectedNames[0];
+
+        if (
+          (await OSSClient.head(`files/${selectedFile}`)).res.headers["x-oss-storage-class"] !==
+          "Standard"
+        ) {
+          const restoreStatus = await getRestoreStatus(`files/${selectedFile}`);
+
+          async function checkRestoreStatus() {
+            const status = await getRestoreStatus(`files/${selectedFile}`);
+            if (status === "restored") downloadFiles();
+            else setTimeout(checkRestoreStatus, 5000);
+          }
+
+          if (restoreStatus === "unrestored") {
+            OSSClient.restore(`files/${selectedFile}`, { Days: 1 });
+            setNotice(`Restoring file ${selectedFile}...`);
+            setTimeout(checkRestoreStatus, 40000);
+            return;
+          } else if (restoreStatus === "restoring") {
+            setNotice(`Still restoring file ${selectedFile}...`);
+            setTimeout(checkRestoreStatus, 5000);
+            return;
+          } else {
+            setNotice("File restored!");
+            setTimeout(() => setNotice(""), 1000);
+          }
+        }
+
+        console.log(`downloading file ${selectedFile}`);
+        const fileName = `files/${selectedFile}`;
         const url = OSSClient.signatureUrl(fileName, {
-          "content-disposition": `attachment; filename=${selectedNames[0]}`,
+          "content-disposition": `attachment; filename=${selectedFile}`,
           "expires": 300,
         });
         link.href = url;
-        link.download = selectedNames[0];
+        link.download = selectedFile;
       } else if (
         selectedNames.length === fileList.filter((f) => f.name.startsWith(`${date}/`)).length
       ) {
+        // Download all files in a day
         const zipName = `zips/files_${date}.zip`;
         link.href = OSSClient.signatureUrl(zipName, {
           "content-disposition": `attachment; filename=${zipName}`,
           "expires": 300,
         });
       } else {
+        // Download some files
         const body = {
           date: date,
           files: selectedNames.map((f) => f.replace(`${date}/`, "")),
@@ -491,13 +548,16 @@ function Form({ jwtToken, OSSClient }: { jwtToken: string; OSSClient: OSS }) {
               </div>
             ))}
         </div>
-        <button type="button" id="fetchBtn" onClick={downloadFiles}>
+        <button type="button" id="fetchBtn" onClick={downloadFiles} disabled={downloading}>
           {downloading ? "Downloading" : "Fetch"}
         </button>
         <p className="url" style={downloadUrl ? { display: "block" } : { display: "none" }}>
           Download should have begun, or click <a href={downloadUrl}>here</a> to download.
           <br />
           Notice: The URL will expire in 5 minutes.
+        </p>
+        <p className="url" style={notice ? { display: "block" } : { display: "none" }}>
+          {notice}
         </p>
       </div>
     </form>
