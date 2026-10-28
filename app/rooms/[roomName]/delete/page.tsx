@@ -1,6 +1,7 @@
 "use client";
 import { use } from "react";
-import { useAuth, DeleteForm } from "@/components";
+import { useAuth } from "@/components/useAuth";
+import { DeleteForm } from "@/components/DeleteForm";
 import type { RoomConfig } from "@/components/types";
 import "./styles.css";
 

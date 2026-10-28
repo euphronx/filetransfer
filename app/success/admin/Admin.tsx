@@ -3,15 +3,10 @@ import { useState, useEffect } from "react";
 import OSS from "ali-oss";
 import "./styles.css";
 import dynamic from "next/dynamic";
-import { useAuth, DeleteForm, padDate } from "@/components";
-import type { RoomConfig } from "@/components/types";
-
-interface FileObj {
-  name: string;
-  url: string;
-  storageClass: string;
-  size: number;
-}
+import { DeleteForm } from "@/components/DeleteForm";
+import { useAuth } from "@/components/useAuth";
+import { padDate, formatBytes } from "@/components/utils";
+import type { RoomConfig, FileObj } from "@/components/types";
 
 const adminConfig: RoomConfig = {
   prefix: "files",
@@ -41,20 +36,11 @@ function CreateRoom({ jwtToken }: { jwtToken: string }) {
     setCreating(true);
     setBtnMsg("Creating...");
     try {
-      const response = await fetch(
-        "https://file-trnsfer-fc-hcuthkwduw.cn-shanghai.fcapp.run/create",
-        {
-          method: "PUT",
-          headers: {
-            "Authorization": `Bearer ${jwtToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: name,
-            password: pwd,
-          }),
-        }
-      );
+      const response = await fetch("https://file-trnsfer-fc-hcuthkwduw.cn-shanghai.fcapp.run/create", {
+        method: "PUT",
+        headers: { "Authorization": `Bearer ${jwtToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name, password: pwd }),
+      });
 
       if (response.status === 409) {
         const json = await response.json();
@@ -85,23 +71,11 @@ function CreateRoom({ jwtToken }: { jwtToken: string }) {
       <h3>Create Rooms</h3>
       <label htmlFor="name">
         Name:
-        <input
-          type="text"
-          id="name"
-          name="name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        ></input>
+        <input type="text" id="name" name="name" value={name} onChange={e => setName(e.target.value)}></input>
       </label>
       <label htmlFor="pwd">
         Password for Room:
-        <input
-          type="text"
-          id="pwd"
-          name="pwd"
-          value={pwd}
-          onChange={(e) => setPwd(e.target.value)}
-        ></input>
+        <input type="text" id="pwd" name="pwd" value={pwd} onChange={e => setPwd(e.target.value)}></input>
       </label>
       <button disabled={creating} className="delete-duplicate" type="submit" onClick={handleSubmit}>
         {btnMsg}
@@ -118,9 +92,7 @@ function DropDuplicate({ OSSClient, jwtToken }: { OSSClient: OSS; jwtToken: stri
   const [detecting, setDetecting] = useState(false);
 
   const handleCheck = (name: string) => {
-    setSelectedNames((prev) =>
-      prev.includes(name) ? prev.filter((item) => item !== name) : [...prev, name]
-    );
+    setSelectedNames(prev => (prev.includes(name) ? prev.filter(item => item !== name) : [...prev, name]));
   };
 
   async function detectDuplicates() {
@@ -134,17 +106,10 @@ function DropDuplicate({ OSSClient, jwtToken }: { OSSClient: OSS; jwtToken: stri
       for (let i = 0; i < 7; i++) {
         now.setDate(now.getDate() - 1);
         const prefix = `files/${padDate(now)}/`;
-        const list = (await OSSClient.list({
-          prefix: prefix,
-        })) as { objects: FileObj[] };
+        const list = (await OSSClient.list({ prefix: prefix })) as { objects: FileObj[] };
         const final = list.objects
-          .filter((f) => f.name !== prefix && f.storageClass === "Standard")
-          .map((f) => ({
-            name: f.name.replace("files/", ""),
-            url: f.url,
-            storageClass: f.storageClass,
-            size: f.size,
-          }));
+          .filter(f => f.name !== prefix && f.storageClass === "Standard")
+          .map(f => ({ name: f.name.replace("files/", ""), url: f.url, storageClass: f.storageClass, size: f.size }));
         fileList.push(...final);
       }
 
@@ -189,20 +154,13 @@ function DropDuplicate({ OSSClient, jwtToken }: { OSSClient: OSS; jwtToken: stri
     setBtnMsg("Deleting");
     setSelectedNames([]);
     try {
-      const files = selectedNames.map((f) => `files/${f}`);
+      const files = selectedNames.map(f => `files/${f}`);
       await OSSClient!.deleteMulti(files);
       setBtnMsg("Deleted");
       fetch("https://file-trnsfer-fc-hcuthkwduw.cn-shanghai.fcapp.run/oper", {
         method: "PUT",
-        headers: {
-          "Authorization": `Bearer ${jwtToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          oper: "delete",
-          files: files.map((f) => f.slice(6)),
-          date: "[MULTI]",
-        }),
+        headers: { "Authorization": `Bearer ${jwtToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ oper: "delete", files: files.map(f => f.slice(6)), date: "[MULTI]" }),
       });
     } catch (e) {
       window.alert(`Failed to delete: ${e}`);
@@ -236,7 +194,7 @@ function DropDuplicate({ OSSClient, jwtToken }: { OSSClient: OSS; jwtToken: stri
               <div key={key}>
                 <div className="duplicate-name">{key}</div>
                 <div id="files">
-                  {list.map((f) => (
+                  {list.map(f => (
                     <div className="options" key={f.url}>
                       <input
                         type="checkbox"
@@ -248,7 +206,7 @@ function DropDuplicate({ OSSClient, jwtToken }: { OSSClient: OSS; jwtToken: stri
                       <label htmlFor={"dup-" + f.url} className="checkbox-label">
                         {f.name.slice(11)}
                         <br />
-                        <div className="dup-date">{f.name.slice(0, 10)}</div>
+                        <div className="dup-date">{f.name.slice(0, 10) + "·" + formatBytes(f.size)}</div>
                       </label>
                     </div>
                   ))}
@@ -267,9 +225,7 @@ export default function Admin() {
   const { jwtToken, OSSClient } = useAuth(adminConfig);
   const [showTraffic, setShowTraffic] = useState(false);
 
-  const Traffic = dynamic(() => import("./Traffic"), {
-    loading: () => <p>Traffic is Loading...</p>,
-  });
+  const Traffic = dynamic(() => import("./Traffic"), { loading: () => <p>Traffic is Loading...</p> });
 
   return (
     <>

@@ -1,7 +1,7 @@
 "use client";
 import { useState, useRef } from "react";
 import OSS from "ali-oss";
-import { getToday } from "./getToday";
+import { getToday } from "./utils";
 import { getFileList } from "./getFileList";
 import type { RoomConfig } from "./types";
 
@@ -34,12 +34,13 @@ export default function DropArea({
       const today = getToday();
       let fileList = await getFileList(today, client!, config);
       // Strip date prefix for uniqueness check (getFileList returns "YYYY-MM-DD/filename")
-      fileList = fileList.map((f) => ({
+      fileList = fileList.map(f => ({
         name: f.name.replace(`${today}/`, ""),
         url: f.url,
         storageClass: f.storageClass,
+        size: f.size,
       }));
-      const isFileExists = async (name: string) => fileList.some((f) => f.name === name);
+      const isFileExists = async (name: string) => fileList.some(f => f.name === name);
 
       let extName = "";
       const parts = fileName.split(".");
@@ -58,7 +59,7 @@ export default function DropArea({
     const allFiles: string[] = [];
     try {
       await Promise.all(
-        files.map(async (file) => {
+        files.map(async file => {
           const cleanName = file.name.replace(/[/\\?%*:|"<>]/g, "_").replace(/\.\./g, "");
           const finalName = await getUniqueFileName(cleanName);
           console.log(`starting to put file ${finalName}`);
@@ -68,10 +69,7 @@ export default function DropArea({
           const path = `${config.prefix}/${getToday()}/${finalName}`;
           if (file.size < 104857600) {
             // Less than 100 MB
-            await client.put(path, file, {
-              parallel: parallel,
-              partSize: partSize,
-            });
+            await client.put(path, file, { parallel: parallel, partSize: partSize });
           } else {
             // Multipart upload for large files
             await client.multipartUpload(path, file);
@@ -87,15 +85,8 @@ export default function DropArea({
       // Call /oper to log upload
       fetch(`${FC_BASE}/oper`, {
         method: "PUT",
-        headers: {
-          "Authorization": `Bearer ${jwtToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          oper: "upload",
-          files: allFiles,
-          date: getToday(),
-        }),
+        headers: { "Authorization": `Bearer ${jwtToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ oper: "upload", files: allFiles, date: getToday() }),
       });
     } catch (err) {
       console.error(err);
@@ -111,7 +102,7 @@ export default function DropArea({
     e.preventDefault();
     setHighlight(false);
     const dt = e.dataTransfer;
-    const files = Array.from(dt.files).filter((f) => !f.name.toLowerCase().endsWith(".url"));
+    const files = Array.from(dt.files).filter(f => !f.name.toLowerCase().endsWith(".url"));
     uploadFiles(files);
   };
 
@@ -121,7 +112,7 @@ export default function DropArea({
       <div
         id="drop-area"
         className={`drop-area ${highlight ? "highlight" : ""}`}
-        onDragOver={(e) => {
+        onDragOver={e => {
           e.preventDefault();
           setHighlight(true);
         }}
@@ -137,14 +128,9 @@ export default function DropArea({
           id="droparea-file"
           multiple={true}
           ref={fileInputRef}
-          onChange={(e) => e.target.files && uploadFiles(Array.from(e.target.files))}
+          onChange={e => e.target.files && uploadFiles(Array.from(e.target.files))}
         />
-        <button
-          type="button"
-          id="fileBtn"
-          disabled={isUploading}
-          onClick={() => fileInputRef.current?.click()}
-        >
+        <button type="button" id="fileBtn" disabled={isUploading} onClick={() => fileInputRef.current?.click()}>
           {isUploading ? "Sending..." : "Select Files"}
         </button>
       </div>

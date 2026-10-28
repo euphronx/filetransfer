@@ -1,7 +1,8 @@
 export interface FileObj {
   name: string;
   url: string;
-  storageClass?: string;
+  storageClass: string;
+  size: number;
 }
 
 export interface AuthState {

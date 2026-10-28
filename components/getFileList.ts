@@ -1,12 +1,8 @@
 import OSS from "ali-oss";
-import { padDate } from "./getToday";
+import { padDate } from "./utils";
 import type { FileObj, RoomConfig } from "./types";
 
-export async function getFileList(
-  date: string | null,
-  client: OSS,
-  config: RoomConfig
-): Promise<FileObj[]> {
+export async function getFileList(date: string | null, client: OSS, config: RoomConfig): Promise<FileObj[]> {
   const prefixForDate = (d: string) => `${config.prefix}/${d}/`;
 
   if (date) {
@@ -14,11 +10,12 @@ export async function getFileList(
     const prefix = prefixForDate(date);
     const result = (await client.list({ prefix })) as { objects: FileObj[] };
     return result.objects
-      .filter((f) => f.name !== prefix)
-      .map((f) => ({
+      .filter(f => f.name !== prefix)
+      .map(f => ({
         name: f.name.replace(config.prefix + "/", ""),
         url: f.url,
         storageClass: f.storageClass,
+        size: f.size,
       }));
   }
 
@@ -35,11 +32,12 @@ export async function getFileList(
     const result = (await client.list({ prefix })) as { objects: FileObj[] };
     fileList.push(
       ...result.objects
-        .filter((f) => f.name !== prefix)
-        .map((f) => ({
+        .filter(f => f.name !== prefix)
+        .map(f => ({
           name: f.name.replace(config.prefix + "/", ""),
           url: f.url,
           storageClass: f.storageClass,
+          size: f.size,
         }))
     );
   }

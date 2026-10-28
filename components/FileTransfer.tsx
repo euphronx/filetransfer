@@ -1,15 +1,15 @@
 "use client";
 import { useState, useEffect } from "react";
 import OSS from "ali-oss";
-import { getToday } from "./getToday";
+import { getToday, resolvePath, formatBytes } from "./utils";
 import { getFileList } from "./getFileList";
 import DropArea from "./DropArea";
 import Search from "./Search";
-import type { RoomConfig } from "./types";
+import type { FileObj, RoomConfig } from "./types";
 
 const FC_BASE = "https://file-trnsfer-fc-hcuthkwduw.cn-shanghai.fcapp.run";
 
-export default function FileTransfer({
+export function FileTransfer({
   jwtToken,
   OSSClient,
   config,
@@ -20,9 +20,7 @@ export default function FileTransfer({
 }) {
   const [date, setDate] = useState(getToday());
   const [fetchedDate, setFetchedDate] = useState<string[]>([]);
-  const [fileList, setFileList] = useState<{ name: string; url: string; storageClass?: string }[]>(
-    []
-  );
+  const [fileList, setFileList] = useState<FileObj[]>([]);
   const [selectedNames, setSelectedNames] = useState<string[]>([]);
   const [downloading, setDownloading] = useState(false);
   const [downloadUrl, setDownloadUrl] = useState("");
@@ -44,9 +42,9 @@ export default function FileTransfer({
           const newFileList = await getFileList(null, OSSClient, config);
           setFileList(newFileList);
         } else if (days > config.archiveDays && !fetchedDate.includes(date)) {
-          setFetchedDate((prev) => [...prev, date]);
+          setFetchedDate(prev => [...prev, date]);
           const dateList = await getFileList(date, OSSClient, config);
-          setFileList((prev) => [...prev, ...dateList]);
+          setFileList(prev => [...prev, ...dateList]);
         }
       } catch {
         console.error(`Error when getting file list of date ${date}`);
@@ -57,15 +55,13 @@ export default function FileTransfer({
   }, [date, OSSClient]);
 
   const handleCheck = (name: string) => {
-    setSelectedNames((prev) =>
-      prev.includes(name) ? prev.filter((item) => item !== name) : [...prev, name]
-    );
+    setSelectedNames(prev => (prev.includes(name) ? prev.filter(item => item !== name) : [...prev, name]));
   };
 
   const handleSelectAll = () =>
-    fileList.filter((f) => f.name.startsWith(`${date}/`)).length === selectedNames.length
+    fileList.filter(f => f.name.startsWith(`${date}/`)).length === selectedNames.length
       ? setSelectedNames([])
-      : setSelectedNames(fileList.filter((f) => f.name.startsWith(`${date}/`)).map((f) => f.name));
+      : setSelectedNames(fileList.filter(f => f.name.startsWith(`${date}/`)).map(f => f.name));
 
   const onUploadFinished = async () => {
     if (!OSSClient) return;
@@ -82,10 +78,7 @@ export default function FileTransfer({
         console.log("fetch /zip");
         const response = await fetch(`${FC_BASE}/zip`, {
           method: "POST",
-          headers: {
-            "Authorization": `Bearer ${jwtToken}`,
-            "Content-Type": "application/json",
-          },
+          headers: { "Authorization": `Bearer ${jwtToken}`, "Content-Type": "application/json" },
         });
 
         if (response.status === 201) {
@@ -95,16 +88,14 @@ export default function FileTransfer({
         } else {
           retries++;
           if (retries < 5) {
-            await new Promise((resolve) => setTimeout(resolve, 1000 * retries));
+            await new Promise(resolve => setTimeout(resolve, 1000 * retries));
           }
         }
       }
     }
   };
 
-  async function getRestoreStatus(
-    fileName: string
-  ): Promise<"restoring" | "restored" | "unrestored"> {
+  async function getRestoreStatus(fileName: string): Promise<"restoring" | "restored" | "unrestored"> {
     const res = await OSSClient!.head(fileName);
     const restore = res.res.headers["x-oss-restore"];
     if (!restore) return "unrestored";
@@ -174,7 +165,7 @@ export default function FileTransfer({
         link.download = selectedFile.replace(`${date}/`, "");
       } else if (
         config.enableZipEndpoint &&
-        selectedNames.length === fileList.filter((f) => f.name.startsWith(`${date}/`)).length
+        selectedNames.length === fileList.filter(f => f.name.startsWith(`${date}/`)).length
       ) {
         // Download all files in a day via pre-built zip (only when zip endpoint is enabled)
         const zipName = `zips/files_${date}.zip`;
@@ -184,18 +175,12 @@ export default function FileTransfer({
         });
       } else {
         // Download selected files via FC endpoint
-        const body: Record<string, unknown> = {
-          date: date,
-          files: selectedNames.map((f) => f.replace(`${date}/`, "")),
-        };
+        const body: Record<string, unknown> = { date: date, files: selectedNames.map(f => f.replace(`${date}/`, "")) };
         if (config.room) body.room = config.room;
 
         const response = await fetch(`${FC_BASE}/download`, {
           method: "POST",
-          headers: {
-            "Authorization": `Bearer ${jwtToken}`,
-            "Content-Type": "application/json",
-          },
+          headers: { "Authorization": `Bearer ${jwtToken}`, "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
 
@@ -214,15 +199,8 @@ export default function FileTransfer({
       // Call /oper to log download
       fetch(`${FC_BASE}/oper`, {
         method: "PUT",
-        headers: {
-          "Authorization": `Bearer ${jwtToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          oper: "download",
-          files: selectedNames.map((f) => f.replace(`${date}/`, "")),
-          date,
-        }),
+        headers: { "Authorization": `Bearer ${jwtToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ oper: "download", files: selectedNames.map(f => f.replace(`${date}/`, "")), date }),
       });
     } catch (e) {
       alert(`Error when downloading: ${e}`);
@@ -237,18 +215,13 @@ export default function FileTransfer({
 
   return (
     <form className="file-form">
-      <DropArea
-        onUploadFinished={onUploadFinished}
-        client={OSSClient}
-        config={config}
-        jwtToken={jwtToken}
-      />
+      <DropArea onUploadFinished={onUploadFinished} client={OSSClient} config={config} jwtToken={jwtToken} />
       <div>
         <div className="fetch-header">
           <h3>Fetch File</h3>
-          <input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          <input id="date" type="date" value={date} onChange={e => setDate(e.target.value)} />
           <button type="button" id="select-all-btn" onClick={handleSelectAll}>
-            {fileList.filter((f) => f.name.startsWith(`${date}/`)).length === selectedNames.length
+            {fileList.filter(f => f.name.startsWith(`${date}/`)).length === selectedNames.length
               ? "Deselect"
               : "Select All"}
           </button>
@@ -256,8 +229,8 @@ export default function FileTransfer({
         </div>
         <div id="files">
           {fileList
-            .filter((f) => f.name.startsWith(`${date}/`))
-            .map((f) => (
+            .filter(f => f.name.startsWith(`${date}/`))
+            .map(f => (
               <div
                 className={`options${f.storageClass && f.storageClass !== "Standard" ? " options-blue" : ""}`}
                 key={f.url}
@@ -270,7 +243,10 @@ export default function FileTransfer({
                   onChange={() => handleCheck(f.name)}
                 ></input>
                 <label htmlFor={f.url} className="checkbox-label">
-                  {f.name.replace(`${date}/`, "")}
+                  <div>{resolvePath(f.name.replace(`${date}/`, "")).name}</div>
+                  <div>
+                    {formatBytes(f.size)} · {resolvePath(f.name.replace(`${date}/`, "")).dir ?? "/"}
+                  </div>
                 </label>
               </div>
             ))}

@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { useAuth, FileTransfer } from "@/components";
+import { useAuth } from "@/components/useAuth";
+import { FileTransfer } from "@/components/FileTransfer";
 import type { RoomConfig } from "@/components/types";
 import "@/components/styles.css";
 
@@ -18,11 +19,7 @@ export default function Success() {
   return (
     <>
       {authState.message && (
-        <div
-          className={
-            "floating" + (authState.state === 0 ? "" : authState.state === 1 ? " success" : " fail")
-          }
-        >
+        <div className={"floating" + (authState.state === 0 ? "" : authState.state === 1 ? " success" : " fail")}>
           {authState.message}
         </div>
       )}

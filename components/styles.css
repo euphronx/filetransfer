@@ -252,6 +252,10 @@ button.reg-btn {
   color: #0000ff;
 }
 
+.options-blue .checkbox-label > div:nth-child(2) {
+  color: inherit;
+}
+
 .checkbox-label {
   font-weight: normal;
   padding: 0;
@@ -259,6 +263,11 @@ button.reg-btn {
   display: inline-block;
   white-space: nowrap;
   overflow-y: scroll;
+}
+
+.checkbox-label > div:nth-child(2) {
+  font-size: 13px;
+  color: #999;
 }
 
 ::-webkit-scrollbar {

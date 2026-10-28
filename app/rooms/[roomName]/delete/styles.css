@@ -60,6 +60,11 @@ button {
   overflow-y: scroll;
 }
 
+.checkbox-label > div:nth-child(2) {
+  font-size: 13px;
+  color: #999;
+}
+
 ::-webkit-scrollbar {
   display: none;
   width: 0;
