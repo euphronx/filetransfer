@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef } from "react";
 import { jsPDF } from "jspdf";
+import { useLanguage } from "@/messages/LanguageProvider";
 import "./styles.css";
 
 interface ImageItem {
@@ -25,6 +26,8 @@ function UploadArea() {
   const [isInsertBefore, setIsInsertBefore] = useState<boolean>(true);
   const [activeMoveId, setActiveMoveId] = useState<string | null>(null);
   const [quality, setQuality] = useState(1);
+  const { msgs } = useLanguage();
+  const [dlBefore, dlAfter] = msgs.main.dlStartNotice.split("{link}");
 
   function formatFileSize(size: number) {
     const KB = 1024;
@@ -238,7 +241,7 @@ function UploadArea() {
           disabled={isGenerating}
           onClick={() => inputRef.current?.click()}
         >
-          {isGenerating ? "Generating..." : "Select Files"}
+          {isGenerating ? msgs.convert.i2p.gening : msgs.main.selectFile}
         </button>
       </div>
       <input
@@ -258,23 +261,24 @@ function UploadArea() {
               onClick={generatePdf}
               disabled={isGenerating}
             >
-              {isGenerating ? "Generating..." : "Generate"}
+              {isGenerating ? msgs.convert.i2p.gening : msgs.convert.i2p.gen}
             </button>
             {pdfResult && (
               <p>
-                Successfully generated!
-                <br /> Download should have begun, or click{" "}
+                {msgs.convert.i2p.genSuccess}
+                <br />
+                {dlBefore}
                 <a href={pdfResult} target="_blank" download="result.pdf">
-                  here
-                </a>{" "}
-                to download.
+                  {msgs.main.dlLinkText}
+                </a>
+                {dlAfter}
               </p>
             )}
           </div>
 
           <div className="quality-slider-container">
             <div className="quality-slider-header">
-              <label htmlFor="quality">Image Quality</label>
+              <label htmlFor="quality">{msgs.convert.i2p.imgQuality}</label>
               <span className="quality-value">{Math.round(quality * 100)}%</span>
             </div>
             <input
@@ -292,12 +296,12 @@ function UploadArea() {
           <table className="i2p-img-list">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Thumbnail</th>
-                <th>Type</th>
-                <th>Size</th>
-                <th>Resolution</th>
-                <th>Operations</th>
+                <th>{msgs.convert.i2p.name}</th>
+                <th>{msgs.convert.i2p.thumb}</th>
+                <th>{msgs.convert.i2p.type}</th>
+                <th>{msgs.convert.i2p.size}</th>
+                <th>{msgs.convert.i2p.resolution}</th>
+                <th>{msgs.convert.i2p.oper}</th>
               </tr>
             </thead>
             <tbody>
@@ -341,7 +345,7 @@ function UploadArea() {
                         {!isAnyRowMoving && (
                           <span
                             className="drag-handle"
-                            title="Drag to reorder"
+                            title={msgs.convert.i2p.dragTitle}
                             onMouseDown={(e) => handleDragStart(e, idx)}
                             onMouseUp={(e) => {
                               (
@@ -363,7 +367,7 @@ function UploadArea() {
                               setActiveMoveId(i.id);
                             }}
                           >
-                            Move
+                            {msgs.convert.i2p.move}
                           </button>
                         ) : isCurrentRowMoving ? (
                           <button
@@ -373,10 +377,10 @@ function UploadArea() {
                               setActiveMoveId(null);
                             }}
                           >
-                            Cancel
+                            {msgs.convert.i2p.cancel}
                           </button>
                         ) : (
-                          <span className="move-target-text">🡇 Put Under</span>
+                          <span className="move-target-text">🡇 {msgs.convert.i2p.under}</span>
                         )}
 
                         <button
@@ -384,7 +388,7 @@ function UploadArea() {
                           className="delete-btn"
                           onClick={() => handleDelete(i.id, i.url)}
                         >
-                          Delete
+                          {msgs.convert.i2p.del}
                         </button>
                       </div>
                     </td>
@@ -400,11 +404,12 @@ function UploadArea() {
 }
 
 export default function Convert() {
+  const { msgs } = useLanguage();
   return (
     <div className="container">
       <div>
-        <div className="convert-title">Image to PDF</div>
-        <div>Assemble images to single pdf</div>
+        <div className="convert-title">{msgs.convert.i2p.title}</div>
+        <div>{msgs.convert.i2p.subtitle}</div>
       </div>
       <UploadArea />
     </div>

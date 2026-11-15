@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import AIResponse from "./AIResponse";
+import { useAuth } from "@/components/useAuth";
 import "./App.css";
 
 export default function Interface() {
@@ -8,20 +9,15 @@ export default function Interface() {
   const [stream, setStream] = useState("");
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [jwtToken, setJwtToken] = useState("");
+  const { jwtToken } = useAuth({
+    prefix: "files",
+    authEndpoint: "/auth/",
+    archiveDays: 7,
+    enableZipEndpoint: false,
+    title: "",
+  });
   const textareaRef = useRef(null);
   const messagesRef = useRef(messages);
-
-  // Get jwt token
-  useEffect(() => {
-    const getClient = async () => {
-      const response = await fetch("/auth");
-      if (response.status === 500 || !response.ok) throw new Error("Failed to get JWT");
-      const { jwtToken } = await response.json();
-      setJwtToken(jwtToken);
-    };
-    getClient();
-  }, []);
 
   useEffect(() => {
     messagesRef.current = messages;

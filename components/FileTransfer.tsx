@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import OSS from "ali-oss";
+import { useLanguage } from "@/messages/LanguageProvider";
 import { getToday, resolvePath, formatBytes } from "./utils";
 import { getFileList } from "./getFileList";
 import DropArea from "./DropArea";
@@ -25,6 +26,8 @@ export function FileTransfer({
   const [downloading, setDownloading] = useState(false);
   const [downloadUrl, setDownloadUrl] = useState("");
   const [notice, setNotice] = useState("");
+  const { msgs } = useLanguage();
+  const [dlBefore, dlAfter] = msgs.main.dlStartNotice.split("{link}");
   let expireTimeout: NodeJS.Timeout | null = null;
 
   // Update file list when changing selected date
@@ -113,8 +116,8 @@ export function FileTransfer({
     target.setHours(0, 0, 0, 0);
     const days = Math.ceil((today.getTime() - target.getTime()) / (1000 * 60 * 60 * 24));
     if (days > config.archiveDays && selectedNames.length > 1) {
-      window.alert("Some of the selected files are archived, please download one by one.");
-      setNotice("Some of the selected files are archived, please download one by one.");
+      window.alert(msgs.main.archivedNotice);
+      setNotice(msgs.main.archivedNotice);
       setTimeout(() => setNotice(""), 5000);
       return;
     }
@@ -143,15 +146,15 @@ export function FileTransfer({
 
           if (restoreStatus === "unrestored") {
             OSSClient!.restore(ossPath, { Days: 1 });
-            setNotice(`Restoring file ${selectedFile}...`);
+            setNotice(msgs.main.restoreNotice.replace("{file}", selectedFile));
             setTimeout(checkRestoreStatus, 40000);
             return;
           } else if (restoreStatus === "restoring") {
-            setNotice(`Still restoring file ${selectedFile}...`);
+            setNotice(msgs.main.restoreStillNotice.replace("{file}", selectedFile));
             setTimeout(checkRestoreStatus, 5000);
             return;
           } else {
-            setNotice("File restored!");
+            setNotice(msgs.main.restoreFinish);
             setTimeout(() => setNotice(""), 1000);
           }
         }
@@ -184,7 +187,7 @@ export function FileTransfer({
           body: JSON.stringify(body),
         });
 
-        if (!response.ok) throw "encounter an error when fetching file link";
+        if (!response.ok) throw msgs.main.fetchLinkError;
         const { name } = await response.json();
         const zipName = `files_${date}.zip`;
 
@@ -203,7 +206,7 @@ export function FileTransfer({
         body: JSON.stringify({ oper: "download", files: selectedNames.map(f => f.replace(`${date}/`, "")), date }),
       });
     } catch (e) {
-      alert(`Error when downloading: ${e}`);
+      alert(msgs.main.dlError.replace("{error}", String(e)));
     } finally {
       setDownloadUrl(link.href);
       link.click();
@@ -218,12 +221,12 @@ export function FileTransfer({
       <DropArea onUploadFinished={onUploadFinished} client={OSSClient} config={config} jwtToken={jwtToken} />
       <div>
         <div className="fetch-header">
-          <h3>Fetch File</h3>
+          <h3>{msgs.main.fetchFile}</h3>
           <input id="date" type="date" value={date} onChange={e => setDate(e.target.value)} />
           <button type="button" id="select-all-btn" onClick={handleSelectAll}>
             {fileList.filter(f => f.name.startsWith(`${date}/`)).length === selectedNames.length
-              ? "Deselect"
-              : "Select All"}
+              ? msgs.main.deselect
+              : msgs.main.selectAll}
           </button>
           <Search fileList={fileList} setDate={setDate} />
         </div>
@@ -252,12 +255,14 @@ export function FileTransfer({
             ))}
         </div>
         <button type="button" id="fetchBtn" onClick={downloadFiles} disabled={downloading}>
-          {downloading ? "Downloading" : "Fetch"}
+          {downloading ? msgs.main.downloading : msgs.main.fetch}
         </button>
         <p className="url" style={downloadUrl ? { display: "block" } : { display: "none" }}>
-          Download should have begun, or click <a href={downloadUrl}>here</a> to download.
+          {dlBefore}
+          <a href={downloadUrl}>{msgs.main.dlLinkText}</a>
+          {dlAfter}
           <br />
-          Notice: The URL will expire in 5 minutes.
+          {msgs.main.dlExpireNotice}
         </p>
         <p className="url" style={notice ? { display: "block" } : { display: "none" }}>
           {notice}

@@ -8,13 +8,7 @@ import { useAuth } from "@/components/useAuth";
 import { padDate, formatBytes } from "@/components/utils";
 import type { RoomConfig, FileObj } from "@/components/types";
 
-const adminConfig: RoomConfig = {
-  prefix: "files",
-  authEndpoint: "/auth/",
-  archiveDays: 7,
-  enableZipEndpoint: true,
-  title: "File Transfer",
-};
+const adminConfig: RoomConfig = { prefix: "files", archiveDays: 7, enableZipEndpoint: true, title: "File Transfer" };
 
 function CreateRoom({ jwtToken }: { jwtToken: string }) {
   const [name, setName] = useState("");

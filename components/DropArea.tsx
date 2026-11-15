@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef } from "react";
 import OSS from "ali-oss";
+import { useLanguage } from "@/messages/LanguageProvider";
 import { getToday } from "./utils";
 import { getFileList } from "./getFileList";
 import type { RoomConfig } from "./types";
@@ -18,9 +19,10 @@ export default function DropArea({
   config: RoomConfig;
   jwtToken: string | null;
 }) {
+  const { msgs } = useLanguage();
   const [highlight, setHighlight] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [statusText, setStatusText] = useState("Drag & Drop files here");
+  const [statusText, setStatusText] = useState(msgs.main.dragDropNotice);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function uploadFiles(files: File[]) {
@@ -28,7 +30,9 @@ export default function DropArea({
     if (!client) return;
 
     setIsUploading(true);
-    setStatusText(`Uploading ${files.length} file${files.length > 1 ? "(s)" : ""}...`);
+    setStatusText(
+      msgs.main[files.length === 1 ? "uploadingOne" : "uploadingOther"].replace("{count}", String(files.length))
+    );
 
     async function getUniqueFileName(fileName: string) {
       const today = getToday();
@@ -80,7 +84,7 @@ export default function DropArea({
         })
       );
 
-      setStatusText("All files uploaded.");
+      setStatusText(msgs.main.uploadFinish);
 
       // Call /oper to log upload
       fetch(`${FC_BASE}/oper`, {
@@ -90,10 +94,10 @@ export default function DropArea({
       });
     } catch (err) {
       console.error(err);
-      setStatusText("Failed to upload");
+      setStatusText(msgs.main.uploadFailed);
     } finally {
       setIsUploading(false);
-      setTimeout(() => setStatusText("Drag & Drop files here"), 1500);
+      setTimeout(() => setStatusText(msgs.main.dragDropNotice), 1500);
       onUploadFinished();
     }
   }
@@ -108,7 +112,7 @@ export default function DropArea({
 
   return (
     <>
-      <label htmlFor="drop-area">Drag & Drop Files</label>
+      <label htmlFor="drop-area">{msgs.main.dragDropTitle}</label>
       <div
         id="drop-area"
         className={`drop-area ${highlight ? "highlight" : ""}`}
@@ -122,7 +126,7 @@ export default function DropArea({
         {statusText}
       </div>
       <div>
-        <label htmlFor="file">Select File</label>
+        <label htmlFor="file">{msgs.main.selectFile}</label>
         <input
           type="file"
           id="droparea-file"
@@ -131,7 +135,7 @@ export default function DropArea({
           onChange={e => e.target.files && uploadFiles(Array.from(e.target.files))}
         />
         <button type="button" id="fileBtn" disabled={isUploading} onClick={() => fileInputRef.current?.click()}>
-          {isUploading ? "Sending..." : "Select Files"}
+          {isUploading ? msgs.main.sending : msgs.main.selectFileBtn}
         </button>
       </div>
     </>

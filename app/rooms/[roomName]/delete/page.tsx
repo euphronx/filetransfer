@@ -10,7 +10,6 @@ export default function Delete({ params }: { params: Promise<{ roomName: string 
 
   const roomConfig: RoomConfig = {
     prefix: `rooms/${roomName}`,
-    authEndpoint: "/auth",
     room: roomName,
     archiveDays: 14,
     enableZipEndpoint: false,

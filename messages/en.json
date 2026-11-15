@@ -1,0 +1,66 @@
+{
+  "login": {
+    "userLabel": "User Name (Optional): ",
+    "pwdLabel": "Password: ",
+    "submitting": "Authenticating...",
+    "submit": "Submit"
+  },
+  "main": {
+    "change": "Change Room",
+    "convert": "Convert",
+    "fetchFile": "Fetch File",
+    "selectAll": "Select All",
+    "deselect": "Deselect",
+    "downloading": "Downloading",
+    "fetch": "Fetch",
+    "dlStartNotice": "Download should have begun, or click {link} to download.",
+    "dlLinkText": "here",
+    "dlExpireNotice": "Notice: The URL will expire in 5 minutes.",
+    "archivedNotice": "Some of the selected files are archived, please download one by one.",
+    "restoreNotice": "Restoring file {file}...",
+    "restoreStillNotice": "Still restoring file {file}...",
+    "restoreFinish": "File restored!",
+    "dlError": "Error when downloading: {error}",
+    "fetchLinkError": "Encounter an error when fetching file link",
+    "searchFile": "Search files",
+    "searchBtnTitle": "Use Reg Expression",
+    "dragDropTitle": "Drag & Drop Files",
+    "dragDropNotice": "Drag & Drop files here",
+    "uploadingOne": "Uploading {count} file...",
+    "uploadingOther": "Uploading {count} files...",
+    "uploadFailed": "Failed to upload",
+    "uploadFinish": "All files uploaded.",
+    "selectFile": "Select Files",
+    "selectFileBtn": "Select files",
+    "sending": "Sending..."
+  },
+  "fail": { "s1": "Invalid Password!", "s2": "click to go back" },
+  "auth": {
+    "authenticating": "Authenticating...",
+    "success": "Successfully authenticated",
+    "failed": "Failed to authenticate"
+  },
+  "convert": {
+    "title": "File Converter",
+    "subtitle": "Convert files between different types",
+    "i2p": {
+      "title": "Image to PDF",
+      "subtitle": "Combine images into single pdf",
+      "gen": "Generate",
+      "gening": "Generating...",
+      "genSuccess": "Successfully generated!",
+      "imgQuality": "Image Quality",
+      "name": "Name",
+      "thumb": "Thumbnail",
+      "type": "Type",
+      "size": "Size",
+      "resolution": "Resolution",
+      "oper": "Operations",
+      "dragTitle": "Drag to reorder",
+      "move": "Move",
+      "del": "Delete",
+      "under": "Put Under",
+      "cancel": "Cancel"
+    }
+  }
+}

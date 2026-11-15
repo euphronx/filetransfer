@@ -1,5 +1,6 @@
 "use client";
 import { useState, useMemo, type Dispatch, type SetStateAction } from "react";
+import { useLanguage } from "@/messages/LanguageProvider";
 
 export default function Search({
   fileList,
@@ -8,6 +9,7 @@ export default function Search({
   fileList: { name: string }[];
   setDate: Dispatch<SetStateAction<string>>;
 }) {
+  const { msgs } = useLanguage();
   const [searchText, setSearchText] = useState("");
   const [reg, setReg] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -56,7 +58,7 @@ export default function Search({
         <input
           type="text"
           className="search-input"
-          placeholder="Search files"
+          placeholder={msgs.main.searchFile}
           value={searchText}
           onChange={(e) => {
             setSearchText(e.target.value);
@@ -65,7 +67,7 @@ export default function Search({
           onKeyDown={handleKeyDown}
         ></input>
         <button
-          title="Use Reg Expression"
+          title={msgs.main.searchBtnTitle}
           className={`reg-btn ${reg ? "selected" : ""}`}
           type="button"
           onClick={() => {
