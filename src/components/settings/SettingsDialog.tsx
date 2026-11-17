@@ -4,6 +4,7 @@ import {
   IconDarkOutline16,
   IconDataOutline16,
   IconDownloadOutline16,
+  IconEditOutline16,
   IconFollowsystemOutline16,
   IconLightOutline16,
   IconModelOutline16,
@@ -41,6 +42,7 @@ import {
 } from '../../services/settings.js'
 import { useTranslate, type TranslationKey, type TranslationMessage } from '../../i18n/index.js'
 import { Button } from '../base/Button.js'
+import { IconButton } from '../base/IconButton.js'
 import { Modal } from '../base/Modal.js'
 import { Select } from '../base/Select.js'
 import { showToast } from '../base/toastState.js'
@@ -550,23 +552,34 @@ const ProviderForm = ({
     setDraft((value) => ({ ...value, ...patch }))
     setSaveError(null)
   }
-  const apiKey = draft.apiKey.trim()
   const baseUrl = draft.baseUrl.trim()
+
+  /**
+   * Key 的编辑态，照原 ApiKeyField 的做法：
+   * 已保存的 Key 只显示掩码，点编辑按钮才出现输入框；
+   * 输入框从空开始，绝不把已存的 Key 填进去。
+   */
+  const savedKey = provider.apiKey
+  const [keyEditing, setKeyEditing] = useState(savedKey === '')
+  const [keyDraft, setKeyDraft] = useState('')
 
   const isMobile = useIsMobile()
   const keyInputRef = useRef<HTMLInputElement>(null)
-  // 还没有 Key 时把光标放进 Key 输入框：首次进来唯一要做的事就是填它。
+  // 还没有 Key 时把光标放进输入框：首次进来唯一要做的事就是填它。
   // 移动端不自动聚焦，否则一打开就弹键盘盖住半个屏幕。
-  const missingKey = provider.apiKey === ''
+  const missingKey = savedKey === ''
   useEffect(() => {
     if (missingKey && !isMobile) {
       keyInputRef.current?.focus()
     }
   }, [missingKey, isMobile])
 
+  /** 界面上要保存的 Key：编辑过就用新值，否则沿用已存的 */
+  const nextApiKey = keyEditing ? keyDraft.trim() : savedKey
+
   /**
-   * 保存：先校验 Key，通过才落盘。
-   * 与原实现一致——填了 Key 就在保存时验一次，不额外加一个「验证」步骤；
+   * 保存：填了 Key 就先校验，通过才落盘。
+   * 与原实现一致——验证是保存的一部分，不是一个独立步骤；
    * 校验用的是表单里正在编辑的地址，不是已保存的那个。
    */
   const submit = async () => {
@@ -582,10 +595,12 @@ const ProviderForm = ({
       return
     }
     setSaveError(null)
-    if (apiKey) {
+    // 已经有保存过的 Key 且这次没改，就不重复校验
+    const changed = keyEditing && keyDraft.trim() !== savedKey
+    if (nextApiKey && changed) {
       setSaving(true)
       try {
-        await verifyApiKey(apiKey, undefined, baseUrl)
+        await verifyApiKey(nextApiKey, undefined, baseUrl)
       } catch (error) {
         setSaving(false)
         setSaveError(
@@ -602,7 +617,7 @@ const ProviderForm = ({
       ...draft,
       name: draft.name.trim() || t('providerDefaultName'),
       baseUrl,
-      apiKey,
+      apiKey: nextApiKey,
       models,
     })
     setSaving(false)
@@ -658,25 +673,50 @@ const ProviderForm = ({
             onChange={(event) => update({ baseUrl: event.target.value })}
           />
         </label>
-        <label className={styles.formField}>
+        <div className={styles.formField}>
           <span className={styles.formLabel}>{t('modelApiKeyLabel')}</span>
-          <input
-            ref={keyInputRef}
-            className={styles.formInput}
-            type="password"
-            autoComplete="off"
-            spellCheck={false}
-            placeholder={t('apiKeyPlaceholder')}
-            value={draft.apiKey}
-            onChange={(event) => update({ apiKey: event.target.value })}
-            onKeyDown={(event) => {
-              // 和原实现一致：回车直接提交，提交时才校验
-              if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
-                void submit()
-              }
-            }}
-          />
-        </label>
+          {/* 已保存就只显示掩码，点编辑才出现空输入框——不把 Key 原文回填 */}
+          {savedKey && !keyEditing ? (
+            <div className={styles.apiKeySaved}>
+              <span className={styles.apiKeyMask}>{'*'.repeat(savedKey.length)}</span>
+              <IconButton
+                tone="primary"
+                icon={<IconEditOutline16 />}
+                tooltip={t('apiKeyEdit')}
+                onClick={() => setKeyEditing(true)}
+              />
+            </div>
+          ) : (
+            <div className={styles.apiKeyInput}>
+              <input
+                ref={keyInputRef}
+                type="password"
+                autoComplete="off"
+                spellCheck={false}
+                placeholder={t('apiKeyPlaceholder')}
+                // 移动端打开设置时不弹键盘，点编辑后才聚焦
+                autoFocus={!isMobile || keyEditing}
+                value={keyDraft}
+                onChange={(event) => {
+                  setKeyDraft(event.target.value)
+                  setSaveError(null)
+                }}
+                onKeyDown={(event) => {
+                  // 和原实现一致：回车直接提交，提交时才校验
+                  if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                    void submit()
+                  }
+                }}
+                onBlur={() => {
+                  // 修改时没输入就离开，回到已保存的状态
+                  if (savedKey && !keyDraft.trim()) {
+                    setKeyEditing(false)
+                  }
+                }}
+              />
+            </div>
+          )}
+        </div>
         {saveError ? <span className={styles.verifyError}>{saveError}</span> : null}
         {/* 模型列表：容量与能力都在模型里配，provider 只给模态默认值 */}
         <div className={styles.formField}>

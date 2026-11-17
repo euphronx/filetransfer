@@ -109,14 +109,7 @@ type Settings = {
   effort: ReasoningEffort
 }
 
-/** 存储键前缀 */
-const PREFIX = 'chat:'
-/** 旧前缀，仅用于一次性搬迁 */
-const LEGACY_PREFIX = 'chat-demo:'
-
 const KEYS = {
-  /** 更早的版本只存单个 Key，仅用于迁移 */
-  legacyApiKey: 'chat:api-key',
   locale: 'chat:locale',
   location: 'chat:location',
   themePreference: 'chat:theme-preference',
@@ -124,44 +117,11 @@ const KEYS = {
   thinking: 'chat:thinking',
   search: 'chat:search',
   siderCollapsed: 'chat:sider-collapsed',
-  /** 扁平端点列表，仅用于迁移到 provider 结构 */
-  legacyEndpoints: 'chat:endpoints',
-  /** 扁平结构时期记录的当前端点，仅用于迁移 */
-  legacyActiveEndpoint: 'chat:active-endpoint',
   providers: 'chat:providers',
   activeProviderId: 'chat:active-provider',
   activeModelId: 'chat:active-model',
   effort: 'chat:effort',
 } as const
-
-/**
- * 把 `chat-demo:` 前缀的旧键搬到 `chat:`，然后删掉旧键。
- * 只搬目标键不存在的情况，避免覆盖用户在新版本里的改动。
- */
-const migrateLegacyKeys = () => {
-  try {
-    const stale: string[] = []
-    for (let index = 0; index < localStorage.length; index += 1) {
-      const key = localStorage.key(index)
-      if (key?.startsWith(LEGACY_PREFIX)) {
-        stale.push(key)
-      }
-    }
-    for (const key of stale) {
-      const next = PREFIX + key.slice(LEGACY_PREFIX.length)
-      const value = localStorage.getItem(key)
-      if (value !== null && localStorage.getItem(next) === null) {
-        localStorage.setItem(next, value)
-      }
-      localStorage.removeItem(key)
-    }
-  } catch {
-    // 存储不可用时保持内存态
-  }
-}
-
-// 读取任何设置之前先搬迁旧前缀，之后所有读写都走新键
-migrateLegacyKeys()
 
 const read = (key: string) => {
   try {
@@ -291,54 +251,7 @@ const normalizeProvider = (value: unknown): ModelProvider | null => {
   }
 }
 
-/** 把更早的扁平端点结构换算成 provider + 单个模型 */
-const migrateLegacyEndpoints = (): ModelProvider[] | null => {
-  const raw = read(KEYS.legacyEndpoints)
-  if (!raw) {
-    return null
-  }
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed)) {
-      return null
-    }
-    const providers: ModelProvider[] = []
-    for (const entry of parsed) {
-      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
-        continue
-      }
-      const item = entry as Record<string, unknown>
-      const id = readString(item.id)
-      const modelId = readString(item.model)
-      if (!id || !modelId) {
-        continue
-      }
-      providers.push({
-        id,
-        name: readString(item.name) ?? id,
-        baseUrl: readString(item.baseUrl) ?? '',
-        apiKey: readString(item.apiKey) ?? '',
-        models: [
-          {
-            id: modelId,
-            // 模型名用模型标识，不用 provider 名：否则同一家几个模型会重名
-            name: modelId,
-            // 旧结构把能力直接挂在端点上，迁移后原样落到这个模型上
-            contextWindow: readPositiveInt(item.contextWindow),
-            maxTokens: readPositiveInt(item.maxTokens),
-            inputModalities: readModalities(item.inputModalities),
-            reasoningEfforts: readEfforts(item.reasoningEfforts),
-          },
-        ],
-      })
-    }
-    return providers.length > 0 ? providers : null
-  } catch {
-    return null
-  }
-}
-
-/** 读取 provider 列表；依次回落到旧版端点结构、旧版单 Key、内置默认 */
+/** 读取 provider 列表；没有记录时用内置默认 */
 const initialProviders = (): ModelProvider[] => {
   try {
     const raw = read(KEYS.providers)
@@ -375,22 +288,14 @@ const initialProviders = (): ModelProvider[] => {
       }
     }
   } catch {
-    // 存储损坏时继续往更早的结构回落
+    // 存储损坏时用内置默认
   }
-  const migrated = migrateLegacyEndpoints()
-  if (migrated) {
-    return migrated
-  }
-  // 旧版本只存了一个 Key，把它当成 DeepSeek 官方 provider 的 Key
-  return [{ ...DEFAULT_PROVIDER, apiKey: read(KEYS.legacyApiKey) ?? '' }]
+  // 什么都没有就从内置 provider 开始：Key 为空，首次进入会引导填写
+  return [DEFAULT_PROVIDER]
 }
 
-/**
- * 迁移结果写回新键，之后不再走旧结构。
- * 只在 `providers` 缺失时写一次：否则每次启动都要重新推导，
- * 而且用户改过配置后旧键仍会被反复读。
- */
-const persistMigratedProviders = (providers: ModelProvider[], selection: ModelSelection) => {
+/** 首次运行时把内置 provider 与默认选择落盘，之后都从存储读 */
+const persistInitialProviders = (providers: ModelProvider[], selection: ModelSelection) => {
   if (read(KEYS.providers) !== null) {
     return
   }
@@ -399,9 +304,9 @@ const persistMigratedProviders = (providers: ModelProvider[], selection: ModelSe
   write(KEYS.activeModelId, selection.modelId)
 }
 
-/** 当前选择：优先用新键，其次用旧版的当前端点 id */
+/** 当前选择：没有记录时用第一个 provider 的第一个模型 */
 const initialSelection = (providers: ModelProvider[]): ModelSelection => {
-  const providerId = read(KEYS.activeProviderId) ?? read(KEYS.legacyActiveEndpoint)
+  const providerId = read(KEYS.activeProviderId)
   const provider = providers.find((item) => item.id === providerId) ?? providers[0]
   const modelId = read(KEYS.activeModelId)
   const model = provider.models.find((item) => item.id === modelId) ?? provider.models[0]
@@ -415,7 +320,7 @@ const initialEffort = (): ReasoningEffort => {
 
 const initialProviderList = initialProviders()
 const initialActiveSelection = initialSelection(initialProviderList)
-persistMigratedProviders(initialProviderList, initialActiveSelection)
+persistInitialProviders(initialProviderList, initialActiveSelection)
 
 export const useSettings = create<Settings>(() => ({
   locale: initialLocale(),
