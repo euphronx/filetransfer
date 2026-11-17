@@ -58,7 +58,7 @@ export default function Interface() {
 
     try {
       const response = await fetch(
-        "https://file-trnsfer-fc-hcuthkwduw.cn-shanghai.fcapp.run/message",
+        `${process.env.FC_ENDPOINT}/message`,
         {
           method: "POST",
           headers: {

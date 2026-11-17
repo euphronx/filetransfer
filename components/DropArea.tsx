@@ -6,7 +6,7 @@ import { getToday } from "./utils";
 import { getFileList } from "./getFileList";
 import type { RoomConfig } from "./types";
 
-const FC_BASE = "https://file-trnsfer-fc-hcuthkwduw.cn-shanghai.fcapp.run";
+const FC_ENDPOINT = process.env.FC_ENDPOINT;
 
 export default function DropArea({
   onUploadFinished,
@@ -87,7 +87,7 @@ export default function DropArea({
       setStatusText(msgs.main.uploadFinish);
 
       // Call /oper to log upload
-      fetch(`${FC_BASE}/oper`, {
+      fetch(`${FC_ENDPOINT}/oper`, {
         method: "PUT",
         headers: { "Authorization": `Bearer ${jwtToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({ oper: "upload", files: allFiles, date: getToday() }),

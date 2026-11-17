@@ -68,7 +68,7 @@ export function useAuth(config: RoomConfig): { authState: AuthState; jwtToken: s
 
     // Wake up the FC server (throttled to 10 minutes via sessionStorage)
     const doWakeup = () => {
-      fetch("https://file-trnsfer-fc-hcuthkwduw.cn-shanghai.fcapp.run/wakeup", {
+      fetch(`${process.env.FC_ENDPOINT}/wakeup`, {
         headers: { "Authorization": `Bearer ${jwtToken}`, "Content-Type": "application/json" },
         method: "POST",
         body: JSON.stringify({

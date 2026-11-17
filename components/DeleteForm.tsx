@@ -5,7 +5,7 @@ import { getToday, formatBytes, resolvePath } from "./utils";
 import { getFileList } from "./getFileList";
 import type { FileObj, RoomConfig } from "./types";
 
-const FC_BASE = "https://file-trnsfer-fc-hcuthkwduw.cn-shanghai.fcapp.run";
+const FC_ENDPOINT = process.env.FC_ENDPOINT;
 
 export function DeleteForm({ OSSClient, jwtToken, config }: { OSSClient: OSS; jwtToken: string; config: RoomConfig }) {
   const [date, setDate] = useState(getToday());
@@ -52,7 +52,7 @@ export function DeleteForm({ OSSClient, jwtToken, config }: { OSSClient: OSS; jw
       await OSSClient!.deleteMulti(files);
 
       // Call /oper to log deletion
-      fetch(`${FC_BASE}/oper`, {
+      fetch(`${FC_ENDPOINT}/oper`, {
         method: "PUT",
         headers: { "Authorization": `Bearer ${jwtToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -66,7 +66,7 @@ export function DeleteForm({ OSSClient, jwtToken, config }: { OSSClient: OSS; jw
       if (config.enableZipEndpoint) {
         (async function () {
           if (date === getToday() && window.confirm("Send /zip request?")) {
-            const response = await fetch(`${FC_BASE}/zip`, {
+            const response = await fetch(`${FC_ENDPOINT}/zip`, {
               method: "POST",
               headers: { "Authorization": `Bearer ${jwtToken}`, "Content-Type": "application/json" },
             });

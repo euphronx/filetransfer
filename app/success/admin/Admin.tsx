@@ -30,7 +30,7 @@ function CreateRoom({ jwtToken }: { jwtToken: string }) {
     setCreating(true);
     setBtnMsg("Creating...");
     try {
-      const response = await fetch("https://file-trnsfer-fc-hcuthkwduw.cn-shanghai.fcapp.run/create", {
+      const response = await fetch(`${process.env.FC_ENDPOINT}/create`, {
         method: "PUT",
         headers: { "Authorization": `Bearer ${jwtToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({ name: name, password: pwd }),
@@ -151,7 +151,7 @@ function DropDuplicate({ OSSClient, jwtToken }: { OSSClient: OSS; jwtToken: stri
       const files = selectedNames.map(f => `files/${f}`);
       await OSSClient!.deleteMulti(files);
       setBtnMsg("Deleted");
-      fetch("https://file-trnsfer-fc-hcuthkwduw.cn-shanghai.fcapp.run/oper", {
+      fetch(`${process.env.FC_ENDPOINT}/oper`, {
         method: "PUT",
         headers: { "Authorization": `Bearer ${jwtToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({ oper: "delete", files: files.map(f => f.slice(6)), date: "[MULTI]" }),

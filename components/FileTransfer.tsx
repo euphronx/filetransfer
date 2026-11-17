@@ -8,7 +8,7 @@ import DropArea from "./DropArea";
 import Search from "./Search";
 import type { FileObj, RoomConfig } from "./types";
 
-const FC_BASE = "https://file-trnsfer-fc-hcuthkwduw.cn-shanghai.fcapp.run";
+const FC_ENDPOINT = process.env.FC_ENDPOINT;
 
 export function FileTransfer({
   jwtToken,
@@ -79,7 +79,7 @@ export function FileTransfer({
       let retries = 0;
       while (!ok && retries < 5) {
         console.log("fetch /zip");
-        const response = await fetch(`${FC_BASE}/zip`, {
+        const response = await fetch(`${FC_ENDPOINT}/zip`, {
           method: "POST",
           headers: { "Authorization": `Bearer ${jwtToken}`, "Content-Type": "application/json" },
         });
@@ -181,7 +181,7 @@ export function FileTransfer({
         const body: Record<string, unknown> = { date: date, files: selectedNames.map(f => f.replace(`${date}/`, "")) };
         if (config.room) body.room = config.room;
 
-        const response = await fetch(`${FC_BASE}/download`, {
+        const response = await fetch(`${FC_ENDPOINT}/download`, {
           method: "POST",
           headers: { "Authorization": `Bearer ${jwtToken}`, "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -200,7 +200,7 @@ export function FileTransfer({
       }
 
       // Call /oper to log download
-      fetch(`${FC_BASE}/oper`, {
+      fetch(`${FC_ENDPOINT}/oper`, {
         method: "PUT",
         headers: { "Authorization": `Bearer ${jwtToken}`, "Content-Type": "application/json" },
         body: JSON.stringify({ oper: "download", files: selectedNames.map(f => f.replace(`${date}/`, "")), date }),

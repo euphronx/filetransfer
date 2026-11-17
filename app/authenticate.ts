@@ -36,7 +36,7 @@ export async function authenticate(formData: FormData) {
   const inputView = new Uint8Array(inputBuffer);
 
   if (pwdBuffer.length !== inputBuffer.length || !timingSafeEqual(pwdView, inputView)) {
-    const response = await fetch("https://file-trnsfer-fc-hcuthkwduw.cn-shanghai.fcapp.run/check", {
+    const response = await fetch(`${process.env.FC_ENDPOINT}/check`, {
       method: "POST",
       headers: { "Authorization": `Bearer ${jwtToken}`, "Content-Type": "application/json" },
       body: JSON.stringify({ password: inputPwd, user_name: userName }),
