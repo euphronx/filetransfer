@@ -17,6 +17,9 @@ node_modules
 /.next/
 /out/
 
+# chat subtree build output; the deployed files live in public/deepseek
+/chat/dist
+
 # production
 /build
 

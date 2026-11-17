@@ -1,3 +1,10 @@
+.quota {
+  padding: 10px 16px 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
 .wrapper {
   --line-height: 24px;
   --input-padding-top: 12px;

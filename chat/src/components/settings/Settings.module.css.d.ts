@@ -60,6 +60,7 @@ declare const styles: {
   readonly "formLabel": string;
   readonly "formInput": string;
   readonly "formActions": string;
+  readonly "credentialChoices": string;
 };
 export = styles;
 

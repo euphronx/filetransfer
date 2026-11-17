@@ -24,12 +24,14 @@ import { useIsMobile } from '../../app/viewport.js'
 import { regionCodes, getRegionName, provinces } from '../../services/location.js'
 import {
   ALL_EFFORTS,
+  hasChosenCredential,
   isBuiltinProvider,
   isChineseBrowser,
   modelAccepts,
   removeProvider,
   saveProvider,
   setActiveModel,
+  setCredential,
   setLocale,
   setLocation,
   setThemePreference,
@@ -422,9 +424,17 @@ const ModelSettings = () => {
   const providers = useSettings((state) => state.providers)
   const activeProviderId = useSettings((state) => state.activeProviderId)
   const activeModelId = useSettings((state) => state.activeModelId)
-  // 当前供应商还没有 Key 时直接展开它的表单：首次使用的唯一任务是填 Key，
-  // 停在一张没有输入框的列表上等于让人自己找路。
+  // 首次进入直接打开内置 DeepSeek，选择服务器 Key 或自己的 Key。
+  // 已经选过、且当前供应商没有 Key 时，仍展开它的表单。
   const [editing, setEditing] = useState<ModelProvider | null>(() => {
+    const state = useSettings.getState()
+    const builtin = state.providers.find((item) => isBuiltinProvider(item)) ?? null
+    if (!hasChosenCredential()) {
+      return builtin
+    }
+    if (state.credential === 'server' && state.activeProviderId === builtin?.id) {
+      return null
+    }
     const active = providers.find((item) => item.id === activeProviderId) ?? providers[0]
     return active && !active.apiKey ? active : null
   })
@@ -552,12 +562,17 @@ const ProviderForm = ({
   }
   const apiKey = draft.apiKey.trim()
   const baseUrl = draft.baseUrl.trim()
+  const builtin = isBuiltinProvider(provider)
+  const savedCredential = useSettings((state) => state.credential)
+  // 发送方式跟其他字段一样，点 Save 才写入；Cancel 丢掉这次选择
+  const [credentialDraft, setCredentialDraft] = useState(savedCredential)
+  const serverKey = builtin && credentialDraft === 'server'
 
   const isMobile = useIsMobile()
   const keyInputRef = useRef<HTMLInputElement>(null)
   // 还没有 Key 时把光标放进 Key 输入框：首次进来唯一要做的事就是填它。
   // 移动端不自动聚焦，否则一打开就弹键盘盖住半个屏幕。
-  const missingKey = provider.apiKey === ''
+  const missingKey = provider.apiKey === '' && !serverKey
   useEffect(() => {
     if (missingKey && !isMobile) {
       keyInputRef.current?.focus()
@@ -582,7 +597,7 @@ const ProviderForm = ({
       return
     }
     setSaveError(null)
-    if (apiKey) {
+    if (apiKey && !serverKey) {
       setSaving(true)
       try {
         await verifyApiKey(apiKey, undefined, baseUrl)
@@ -597,6 +612,9 @@ const ProviderForm = ({
         )
         return
       }
+    }
+    if (builtin) {
+      setCredential(credentialDraft)
     }
     saveProvider({
       ...draft,
@@ -631,9 +649,35 @@ const ProviderForm = ({
     <div className={styles.modelSection}>
       <div className={styles.modelHeading}>
         <div className={styles.label}>{t('providerSectionLabel')}</div>
-        <div className={styles.description}>{t('modelBaseUrlHint')}</div>
+        {serverKey ? null : <div className={styles.description}>{t('modelBaseUrlHint')}</div>}
       </div>
       <div className={styles.form}>
+        {builtin ? (
+          <div className={styles.formField}>
+            <span className={styles.formLabel}>{t('credentialLabel')}</span>
+            <span className={styles.modelNote}>
+              {t(credentialDraft === 'server' ? 'credentialServerHint' : 'credentialKeyHint')}
+            </span>
+            <div className={styles.credentialChoices}>
+              <Button
+                size="s"
+                variant={credentialDraft === 'server' ? 'primary' : 'outlined'}
+                onClick={() => setCredentialDraft('server')}
+              >
+                {t('credentialServer')}
+              </Button>
+              <Button
+                size="s"
+                variant={credentialDraft === 'key' ? 'primary' : 'outlined'}
+                onClick={() => setCredentialDraft('key')}
+              >
+                {t('credentialKey')}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+        {serverKey ? null : (
+          <>
         <label className={styles.formField}>
           <span className={styles.formLabel}>{t('modelNameLabel')}</span>
           <input
@@ -734,6 +778,8 @@ const ProviderForm = ({
             {t('modelAdd')}
           </button>
         </div>
+          </>
+        )}
       </div>
       <div className={styles.formActions}>
         <Button variant="outlined" size="m" onClick={onDone}>

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { createId } from '../../utils/id.js'
 import { ApiError, streamChat } from '../api/client.js'
+import { ensureEmbed } from '../embed.js'
 import type { ChatRequest } from '../api/types.js'
 import { extractFileIds, getFileErrorCode, isRetryableApiError } from '../api/errors.js'
 import { cancelUpload, describeUploadError, uploadAttachment, useUploads } from '../attachments.js'
@@ -11,9 +12,11 @@ import {
   getActiveProvider,
   getApiKey,
   isDeepSeekProvider,
+  usesServerCredential,
   resolveEffort,
   useSettings,
 } from '../settings.js'
+import { serverQuotaSnapshot, tryConsumeServerCompletion } from '../serverQuota.js'
 import { appendBranch, getVisibleMessages, normalizeSession, selectVersion } from './branches.js'
 import * as db from './db.js'
 import {
@@ -1025,11 +1028,28 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
   streamFlushes.set(sessionId, flush)
 
   try {
+    if (usesServerCredential()) {
+      try {
+        await ensureEmbed()
+      } catch {
+        reply = settleReply(reply, 'error', Date.now(), {
+          kind: 'network',
+          message: '',
+          localMessage: { key: 'serverUnavailable' },
+        })
+        return
+      }
+    }
     for (let attempt = 0; ; attempt += 1) {
       /** 附件补齐前出错属于上传失败，请求还没有发出 */
       let preparing = true
       let receivedContent = false
       try {
+        if (attempt === 0 && usesServerCredential() && serverQuotaSnapshot().remaining <= 0) {
+          preparing = false
+          tryConsumeServerCompletion()
+          throw new ApiError('http', { key: 'serverQuotaReached' }, 429)
+        }
         const prepared = await prepareFiles(sessionId, request, controller.signal)
         preparing = false
         // 附件就绪后获取本轮信息；续写沿用原回答快照，重新生成的快照独立保存。
@@ -1039,6 +1059,9 @@ const streamReply = async (sessionId: string, initial: AssistantMessage, request
         reply = { ...reply, latestReminder }
         updateReply(sessionId, reply)
         persist(sessionId)
+        if (attempt === 0 && usesServerCredential() && !tryConsumeServerCompletion()) {
+          throw new ApiError('http', { key: 'serverQuotaReached' }, 429)
+        }
         const messages = toRequestMessages(
           prepared.history,
           prepared.question,

@@ -11,7 +11,7 @@
 - **多房间**：自定义房间名，独立 OSS 前缀和密码，互不可见
 - **搜索**：按文件名搜索，支持正则表达式和键盘导航
 - **管理面板**：删除/重命名文件、创建房间、重复检测、流量日志
-- **DeepSeek AI**：嵌入 DeepSeek 聊天界面
+- **DeepSeek AI**：`/deepseek/` 是 deepseek-web 的整页聊天。可使用服务器 Key 或自己的 Key，对话保存在浏览器本地。更新上游时在仓库根目录执行 `git subtree pull --prefix=chat --squash https://github.com/euphronx/deepseek-web.git main`，再在 `chat/` 里构建并把产物放入 `public/deepseek/`。说明见 `chat/EMBED.md`。
 - **安全保障**：STS 临时凭证、JWT 认证、middleware 房间隔离、IP 白名单
 
 ## 技术栈
@@ -40,8 +40,10 @@
 │   ├── rooms/[roomName]/
 │   │   ├── page.tsx         # 自定义房间文件传输
 │   │   └── delete/page.tsx  # 房间文件删除
-│   ├── deepseek/            # DeepSeek AI 聊天
+│   ├── deepseek/config/     # 把 FC_ENDPOINT 交给聊天页
 │   └── fail/                # 登录失败页
+├── chat/                    # deepseek-web 源码副本
+├── public/deepseek/         # 聊天页构建产物
 ├── components/              # 共享组件
 │   ├── FileTransfer.tsx     # 核心文件传输组件
 │   ├── DropArea.tsx         # 拖拽上传

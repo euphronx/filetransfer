@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { useTranslate } from '../i18n/index.js'
 import { useSettings } from '../services/settings.js'
 import { useIsMobile, useMobileViewport, usePreventPageScroll } from './viewport.js'
@@ -15,6 +15,14 @@ import { SessionView } from '../components/session/SessionView.js'
 import { MobileHeader } from '../components/session/MobileHeader.js'
 import { Welcome } from '../components/session/Welcome.js'
 import { ensureApiKey } from '../components/settings/settingsDialogState.js'
+import { Modal } from '../components/base/Modal.js'
+import { ensureEmbed } from '../services/embed.js'
+import {
+  dismissQuotaDialog,
+  isQuotaDialogOpen,
+  SERVER_DAILY_LIMIT,
+  subscribeServerQuota,
+} from '../services/serverQuota.js'
 import { SettingsDialog } from '../components/settings/SettingsDialog.js'
 import { Toast } from '../components/base/Toast.js'
 import { showToast } from '../components/base/toastState.js'
@@ -67,9 +75,16 @@ export const App = () => {
   // 移动端选中会话、切换布局后收起抽屉
   useEffect(closeMobileSider, [activeId, isMobile])
 
+  const quotaDialogOpen = useSyncExternalStore(
+    subscribeServerQuota,
+    isQuotaDialogOpen,
+    () => false
+  )
+
   useEffect(() => {
     void initChat()
-    // 首次打开先在设置里输入 API Key
+    void ensureEmbed()
+    // 首次打开弹出内置供应商，让用户选择服务器 Key 或自己的 Key
     ensureApiKey()
   }, [])
 
@@ -133,6 +148,11 @@ export const App = () => {
         <SearchPanel />
       </div>
       <SettingsDialog />
+      {quotaDialogOpen ? (
+        <Modal title={t('serverQuotaTitle')} closable onClose={dismissQuotaDialog}>
+          {t('serverQuotaBody', { limit: SERVER_DAILY_LIMIT })}
+        </Modal>
+      ) : null}
       <Toast />
     </>
   )

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { getApiKey } from '../../services/settings.js'
+import { getApiKey, hasChosenCredential, usesServerCredential } from '../../services/settings.js'
 
 /** 设置弹窗的分组：通用设置 / 模型 / 数据管理 */
 export type SettingsSection = 'general' | 'models' | 'data'
@@ -15,9 +15,13 @@ export const openSettings = (section: SettingsSection) =>
 
 export const closeSettings = () => useSettingsDialog.setState({ open: false })
 
-/** 没有 API Key 时打开设置并选中模型配置，返回是否已有 Key */
+/** 还没选过发送方式，或自己的 Key 为空时，打开设置里的模型页。 */
 export const ensureApiKey = () => {
-  if (getApiKey()) {
+  if (!hasChosenCredential()) {
+    openSettings('models')
+    return false
+  }
+  if (usesServerCredential() || getApiKey()) {
     return true
   }
   openSettings('models')

@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import {
   IconCheckedOutline14,
@@ -45,6 +45,7 @@ import { ensureApiKey, useSettingsDialog } from '../settings/settingsDialogState
 import { DragMask, useFileDrop } from './DragMask.js'
 import { showToast } from '../base/toastState.js'
 import { ACCEPT, ACCEPT_TEXT_ONLY, useUploads } from '../../services/attachments.js'
+import { serverQuotaSnapshot, subscribeServerQuota } from '../../services/serverQuota.js'
 import { DraftAttachments } from './DraftAttachments.js'
 import { useVoiceInput } from './useVoiceInput.js'
 import { VoiceButton } from './VoiceButton.js'
@@ -219,6 +220,10 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
     (state) => sessionId !== null && Object.hasOwn(state.streaming, sessionId)
   )
   const thinking = useSettings((state) => state.thinking)
+  const useServerKey = useSettings(
+    (state) => state.credential === 'server' && state.activeProviderId === DEFAULT_PROVIDER.id
+  )
+  const quota = useSyncExternalStore(subscribeServerQuota, serverQuotaSnapshot, serverQuotaSnapshot)
   const importingHistory = useChatStore((state) => state.importingHistory)
   const isMobile = useIsMobile()
   const search = useSettings((state) => state.search)
@@ -352,6 +357,9 @@ const Input = ({ sessionId }: { sessionId: string | null }) => {
         }
       }}
     >
+      {useServerKey ? (
+        <div className={styles.quota}>{t('serverQuotaRemaining', { count: quota.remaining })}</div>
+      ) : null}
       <DraftAttachments items={attachments} onRetry={retryFile} onRemove={removeFile} />
       <div className={styles.textareaWrapper}>
         <textarea

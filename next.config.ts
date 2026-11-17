@@ -14,6 +14,13 @@ const nextConfig: NextConfig = {
   typescript: { ignoreBuildErrors: true },
 
   trailingSlash: true,
+
+  async rewrites() {
+    return [
+      { source: "/deepseek", destination: "/deepseek/index.html" },
+      { source: "/deepseek/", destination: "/deepseek/index.html" },
+    ];
+  },
 };
 
 export default nextConfig;

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { TtsVoice } from './api/speech.js'
+import { getProxyBaseUrl, getSiteJwt } from './embed.js'
 import { normalizeLocation, type UserLocation } from './location.js'
 
 export type Locale = 'zh-CN' | 'en-US'
@@ -107,7 +108,12 @@ type Settings = {
   activeModelId: string
   /** 推理强度 */
   effort: ReasoningEffort
+  /** server：站点转发；key：浏览器直连自己的 API Key */
+  credential: CredentialMode
 }
+
+/** 发送时用哪一份凭据。嵌入页默认走服务器 Key。 */
+export type CredentialMode = 'server' | 'key'
 
 /** 存储键前缀 */
 const PREFIX = 'chat:'
@@ -132,6 +138,9 @@ const KEYS = {
   activeProviderId: 'chat:active-provider',
   activeModelId: 'chat:active-model',
   effort: 'chat:effort',
+  credential: 'chat:credential',
+  /** 是否已经在内置供应商里选过服务器 Key 或自己的 Key */
+  credentialChosen: 'chat:credential-chosen',
 } as const
 
 /**
@@ -413,6 +422,8 @@ const initialEffort = (): ReasoningEffort => {
   return saved === 'low' || saved === 'max' ? saved : 'high'
 }
 
+const initialCredential = (): CredentialMode => (read(KEYS.credential) === 'key' ? 'key' : 'server')
+
 const initialProviderList = initialProviders()
 const initialActiveSelection = initialSelection(initialProviderList)
 persistMigratedProviders(initialProviderList, initialActiveSelection)
@@ -429,7 +440,24 @@ export const useSettings = create<Settings>(() => ({
   activeProviderId: initialActiveSelection.providerId,
   activeModelId: initialActiveSelection.modelId,
   effort: initialEffort(),
+  credential: initialCredential(),
 }))
+
+/** 首次打开还没选过发送方式。选过之后不再主动弹出。 */
+export const hasChosenCredential = (): boolean => read(KEYS.credentialChosen) === 'true'
+
+/**
+ * 当前请求是否走服务器 Key。
+ * 只有正在使用的内置 DeepSeek 供应商可以走服务器；自己添加的供应商始终用自己的 Key。
+ */
+export const usesServerCredential = (): boolean =>
+  useSettings.getState().credential === 'server' && isBuiltinProvider(getActiveProvider())
+
+export const setCredential = (credential: CredentialMode) => {
+  write(KEYS.credential, credential)
+  write(KEYS.credentialChosen, 'true')
+  useSettings.setState({ credential })
+}
 
 /** 当前供应商；列表异常时回落到内置默认值 */
 export const getActiveProvider = (): ModelProvider => {
@@ -444,11 +472,23 @@ export const getActiveModelProfile = (): ModelProfile => {
   return provider.models.find((model) => model.id === activeModelId) ?? provider.models[0]
 }
 
-/** 当前供应商的 API Key；请求、上传、语音都用它 */
-export const getApiKey = (): string => getActiveProvider().apiKey
+/**
+ * 请求使用的 Bearer。
+ * 服务器模式是站点 JWT；自己的 Key 模式是当前供应商的 API Key。
+ */
+export const getApiKey = (): string =>
+  usesServerCredential() ? getSiteJwt() : getActiveProvider().apiKey
 
-/** 当前供应商的 API 根地址；留空时用构建期默认值 */
-export const getApiBaseUrl = (): string => getActiveProvider().baseUrl.trim() || __API_ORIGIN__
+/**
+ * API 根地址，不含具体接口路径。
+ * 服务器模式是函数计算反代；自己的 Key 留空时用构建期默认地址。
+ */
+export const getApiBaseUrl = (): string => {
+  if (usesServerCredential()) {
+    return getProxyBaseUrl() || __API_ORIGIN__
+  }
+  return getActiveProvider().baseUrl.trim() || __API_ORIGIN__
+}
 
 /** 当前模型标识；请求里的 model 字段 */
 export const getActiveModel = (): string => getActiveModelProfile().id

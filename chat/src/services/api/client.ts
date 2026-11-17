@@ -1,5 +1,6 @@
 import { translate, type TranslationMessage } from '../../i18n/index.js'
-import { getApiBaseUrl } from '../settings.js'
+import { ensureEmbed, getProxyBaseUrl, getSiteJwt } from '../embed.js'
+import { getApiBaseUrl, usesServerCredential } from '../settings.js'
 import { readChatChunk } from './parseChunk.js'
 import { readServerSentEvents } from './sse.js'
 import type { ApiErrorBody, ChatChunk, ChatRequest, FileObject, FilePurpose } from './types.js'
@@ -57,12 +58,38 @@ const readErrorResponse = async (
   return new ApiError(kind, message, response.status)
 }
 
-export const request = async (url: string, init: RequestInit): Promise<Response> => {
+/** 服务器模式把官方地址改写到函数计算反代，并换上站点 JWT。 */
+const retargetServer = (url: string): string => {
+  const proxy = getProxyBaseUrl()
+  if (!proxy) {
+    throw new ApiError('network', { key: 'serverEndpointMissing' })
+  }
+  if (url.startsWith(proxy)) {
+    return url
+  }
+  const api = __API_ORIGIN__.replace(/\/$/, '')
+  if (url.startsWith(api)) {
+    return proxy + url.slice(api.length)
+  }
+  const parsed = new URL(url)
+  return proxy + parsed.pathname + parsed.search
+}
+
+export const request = async (url: string, init: RequestInit, direct = false): Promise<Response> => {
+  let nextUrl = url
+  let nextInit = init
+  if (!direct && usesServerCredential()) {
+    await ensureEmbed()
+    nextUrl = retargetServer(url)
+    const headers = new Headers(init.headers)
+    headers.set('Authorization', `Bearer ${getSiteJwt()}`)
+    nextInit = { ...init, headers }
+  }
   let response: Response
   try {
-    response = await fetch(url, init)
+    response = await fetch(nextUrl, nextInit)
   } catch (error) {
-    if (init.signal?.aborted) {
+    if (nextInit.signal?.aborted) {
       throw error
     }
     throw new ApiError('network', error instanceof Error ? error.message : String(error))
@@ -83,19 +110,23 @@ const authHeaders = (apiKey: string): Record<string, string> => ({
  *
  * `baseUrl` 用于校验尚未保存的地址：设置页里改完地址还没保存就要验 Key，
  * 否则会拿旧地址去验，改完地址的用户会看到莫名其妙的失败。
- * 传空串按未声明处理，回落到当前生效的地址。
+ * 传空串按未声明处理，用官方地址。校验始终直连，不走函数计算。
  */
 export const verifyApiKey = async (
   apiKey: string,
   signal?: AbortSignal,
   baseUrl?: string
 ): Promise<void> => {
-  const origin = baseUrl?.trim() || getApiBaseUrl()
-  await request(`${origin}/models`, {
-    method: 'GET',
-    headers: authHeaders(apiKey),
-    signal,
-  })
+  const origin = (baseUrl?.trim() || __API_ORIGIN__).replace(/\/$/, '')
+  await request(
+    `${origin}/models`,
+    {
+      method: 'GET',
+      headers: authHeaders(apiKey),
+      signal,
+    },
+    true
+  )
 }
 
 /**

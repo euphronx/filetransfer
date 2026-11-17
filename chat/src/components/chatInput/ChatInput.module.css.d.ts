@@ -1,4 +1,5 @@
 declare const styles: {
+  readonly "quota": string;
   readonly "wrapper": string;
   readonly "session": string;
   readonly "home": string;
