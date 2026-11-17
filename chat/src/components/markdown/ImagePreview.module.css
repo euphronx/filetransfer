@@ -1,0 +1,94 @@
+/* 全屏图片预览：规格对齐网页版 FancyBox */
+
+.box {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 近黑遮罩；点击关闭 */
+.mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.88);
+}
+
+/* 右上角工具条 */
+.toolbar {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2001;
+}
+
+/* 44px 圆形关闭按钮，白色图标 */
+.close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--dsw-static-neutral-bluish-00);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+
+  svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  &:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.6);
+    outline-offset: 2px;
+  }
+}
+
+/*
+ * 图片舞台：占满视口，图片按比例 contain 居中。
+ * 舞台本身不接收指针事件，否则它会盖住遮罩、点空白处关不掉预览；
+ * 只有图片自己接收点击。
+ */
+.slide {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* 尺寸由 JS 按 contain 算好后写在 inline style 上 */
+.image {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  /* 预览态下点击图片没有动作，用默认指针，避免误导成「可以放大」 */
+  cursor: default;
+  pointer-events: auto;
+  /* 大图加载时先淡入，避免闪一下 */
+  animation: image-preview-in 0.16s ease-out;
+}
+
+@keyframes image-preview-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
