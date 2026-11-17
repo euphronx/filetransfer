@@ -1,0 +1,76 @@
+/* canvas 代码块：沙箱 iframe 预览 + 底部提示条 */
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  border-radius: 0 0 8px 8px;
+  overflow: hidden;
+}
+
+.frame {
+  display: block;
+  width: 100%;
+  /* 固定高度 + iframe 内部滚动：产物自己决定内容多高 */
+  height: 460px;
+  border: 0;
+  background: #fff;
+}
+
+/* 深色主题下给产物一个中性底色，避免白得刺眼；产物自己可以覆盖 */
+[data-ds-dark-theme] .frame {
+  background: #16171a;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  border-top: 0.5px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  line-height: 16px;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+    color: var(--dsw-alias-label-primary);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--dsw-alias-button-primary-fill);
+    outline-offset: 1px;
+  }
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 120px;
+  border-radius: 0 0 8px 8px;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+@media (max-width: 767px) {
+  .frame {
+    height: 360px;
+  }
+}
